@@ -61,6 +61,8 @@
 | 409 | `RETRY_TRUNCATED_BLOCKED` | `payload_truncated=true` 로그 재처리 시도 |
 | 413 | `PAYLOAD_TOO_LARGE` | 요청 본문 크기 초과 |
 | 429 | `TOO_MANY_CONNECTIONS` | SSE 연결 상한 초과 |
+| 400 | `DELTA_SINCE_TOO_OLD` | `since` 파라미터가 24시간 하한을 초과 |
+| 429 | `DELTA_RATE_LIMITED` | delta 호출 60초/10회 초과 |
 | 500 | `INTERNAL_ERROR` | 서버 내부 오류 (스택트레이스 응답 금지) |
 | 501 | `NOT_IMPLEMENTED` | 아직 구현되지 않은 엔드포인트 (Day 3 이전 `execute` 같은 stub) |
 
@@ -211,6 +213,50 @@ SSE 재연결 및 폴백 조회를 위한 2단계 안전망:
   - 호출 즉시 `audit_log`에 `RECOVERY_FETCH` 엔트리 기록 (`actor_id`·시각·범위)
   - **`actor_id` 기준 5회/시간** rate limit (IP 기준 아님 — NAT 뒤 공유 환경에서 선의 사용자 차단 방지)
 - 24시간 초과면서 `mode=RECOVERY`가 없으면 400 + 응답 메시지에 `"복구 모드는 ?mode=RECOVERY를 사용하세요"` 힌트 제공
+
+### GET /api/executions/delta
+
+링버퍼(5분/1000건) 초과 단절 시 프런트가 `RESYNC_REQUIRED` 수신 후 호출하는 공백 메꾸기 API.
+
+**쿼리 파라미터**
+- `since` (ISO-8601 OffsetDateTime) — 최초 호출. 하한 `now - 24h`, 초과 시 `400 DELTA_SINCE_TOO_OLD`
+- `cursor` (base64(ISO-8601)) — 2페이지 이후. `since`와 동시 지정 시 `cursor` 우선
+- `limit` (기본 500, 최대 1000)
+
+**응답** `ApiResponse<DeltaResponse>`
+
+    {
+      "success": true,
+      "data": {
+        "items": [{
+          "id": 123,
+          "interfaceConfigId": 1,
+          "interfaceName": "example",
+          "status": "SUCCESS",
+          "triggeredBy": "MANUAL",
+          "startedAt": "2026-04-20T10:00:00+09:00",
+          "finishedAt": "2026-04-20T10:00:01+09:00",
+          "durationMs": 512,
+          "retryCount": 0,
+          "parentLogId": null,
+          "errorMessage": null
+        }],
+        "truncated": false,
+        "nextCursor": null
+      }
+    }
+
+**보안·감사**
+- 세션 인증 필수. actor 필터 없음(운영자 전체 관측 허용).
+- actor 기준 60초/10회 rate limit 초과 시 `429 DELTA_RATE_LIMITED`.
+- 성공/실패 모두 감사 로그 1줄: `actor={hash} since={iso} returned_count={n} truncated={bool} limit={n}`.
+
+**페이지네이션**
+- `limit+1` 서버 조회 후 `truncated = size > limit`. `truncated=true`면 마지막 1건 drop하고 `nextCursor = base64(last.startedAt)`.
+- `truncated=false`면 `nextCursor=null`.
+
+**마이크로초 경계**
+동일 μs에 다수 행 존재 시 경계 1건 유실 가능 — 원본 DB append-only 보존. RESYNC 재호출로 복구.
 
 ### 3.4 민감정보 마스킹 적용 지점 (Defense in Depth)
 
@@ -693,6 +739,21 @@ data: {
 - `id:` 라인은 링버퍼 키로 사용되는 단조 증가 시퀀스. 브라우저가 `Last-Event-ID` 헤더로 자동 전송
 - 서버 재시작 시 시퀀스 초기화 가능 → 브라우저는 `?since=` 폴백으로 보강 (§3.3)
 - payload는 `MaskingRule` 적용된 상태로 emit (§3.4)
+
+### clientId 재할당 (grace 2초)
+
+동일 `clientId`가 다른 세션에 바인딩 중일 때 `subscribe` 진입 시:
+1. 이전 세션의 emitter를 2초 delayed complete 스케줄
+2. 새 세션에 즉시 재할당, 이후 이벤트는 새 emitter에만 라우팅
+3. 감사 로그: `event=CLIENT_ID_REASSIGNED clientId=<uuid> old_session=<hash> new_session=<hash> actor=<hash>`
+
+브라우저 F5·탭 이동 시 이전 emitter complete 지연과의 경쟁 상태를 흡수한다.
+
+### UNAUTHORIZED 이벤트
+
+세션 만료를 `HttpSessionListener`로 감지하면 해당 세션의 모든 emitter에 `event: UNAUTHORIZED` 1회 송출 후 complete. 프런트는 이 이벤트를 수신해 `close()` + logout + `/login` 이동해야 한다. 감사 로그: `event=SSE_DROPPED_ON_SESSION_EXPIRY sessionId=<hash> clientId=<uuid> actor=<hash>`.
+
+EventSource는 HTTP 401을 onerror 이벤트로만 노출하며 status 필드가 없으므로(WHATWG 스펙), 401 응답은 3초 간격 자동 재연결을 유발한다. 이 이벤트 기반 종료 프로토콜은 자동 재연결 루프를 방지한다.
 
 ### 6.2 `GET /api/monitor/dashboard` — 집계
 
