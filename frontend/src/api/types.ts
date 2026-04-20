@@ -1,7 +1,7 @@
 export type ProtocolType = 'REST' | 'SOAP' | 'MQ' | 'BATCH' | 'SFTP'
 export type ScheduleType = 'MANUAL' | 'CRON'
 export type InterfaceStatus = 'ACTIVE' | 'INACTIVE'
-export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED'
+export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'RECOVERED'
 export type TriggerType = 'MANUAL' | 'SCHEDULER' | 'RETRY'
 
 export const PROTOCOL_TYPES: ProtocolType[] = ['REST', 'SOAP', 'MQ', 'BATCH', 'SFTP']
