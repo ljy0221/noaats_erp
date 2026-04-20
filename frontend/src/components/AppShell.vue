@@ -10,7 +10,9 @@ const route = useRoute()
 const toast = useToastStore()
 
 const navItems = [
-  { title: '인터페이스 관리', to: '/interfaces', icon: 'mdi-view-list' },
+  { title: '대시보드', to: '/dashboard', icon: 'mdi-view-dashboard' },
+  { title: '인터페이스 관리', to: '/interfaces', icon: 'mdi-format-list-bulleted' },
+  { title: '실행 이력', to: '/history', icon: 'mdi-history' },
 ]
 
 const currentTitle = computed(() => {
@@ -54,20 +56,6 @@ async function onLogout() {
           :title="item.title"
           :to="item.to"
           :active="route.path.startsWith(item.to)"
-        />
-        <v-divider class="my-2" />
-        <v-list-subheader>Day 6 예정</v-list-subheader>
-        <v-list-item
-          prepend-icon="mdi-history"
-          title="실행 이력"
-          disabled
-          subtitle="Day 6"
-        />
-        <v-list-item
-          prepend-icon="mdi-chart-box"
-          title="대시보드"
-          disabled
-          subtitle="Day 6"
         />
       </v-list>
     </v-navigation-drawer>

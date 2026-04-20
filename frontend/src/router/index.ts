@@ -16,12 +16,22 @@ export const router = createRouter({
       children: [
         {
           path: '',
-          redirect: '/interfaces',
+          redirect: '/dashboard',
+        },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/pages/Dashboard.vue'),
         },
         {
           path: 'interfaces',
           name: 'interfaces',
           component: () => import('@/pages/InterfaceList.vue'),
+        },
+        {
+          path: 'history',
+          name: 'history',
+          component: () => import('@/pages/ExecutionHistory.vue'),
         },
       ],
     },
@@ -34,17 +44,20 @@ export const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to: RouteLocationNormalized) => {
+router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormalized) => {
   const auth = useAuthStore()
   if (!auth.ready) {
     await auth.bootstrap()
+  }
+  if (to.name === 'login' && from.name && from.name !== 'login') {
+    sessionStorage.removeItem('sse.clientId')
   }
   const isPublic = to.meta.public === true
   if (!isPublic && !auth.authenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.name === 'login' && auth.authenticated) {
-    return { name: 'interfaces' }
+    return { name: 'dashboard' }
   }
   return true
 })
