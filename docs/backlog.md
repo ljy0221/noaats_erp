@@ -31,19 +31,34 @@
 | `DefensiveMaskingFilter` XML StAX 단계 3 추가 (SOAP 대응) | erd.md §3.2 | ExecutionLog XML payload 도입 시 |
 | `@PreAuthorize` Role 기반 접근 제어 초안 | api-spec.md §2.4 | 현재 단일 OPERATOR만, 분리는 설계만 |
 | `RetryGuard` Role=ADMIN 분기 추가 | api-spec §5.3 | 운영 전환 시 actor 무관 재처리 허용 |
-| SSE `UNAUTHORIZED` 이벤트 + `SSE_DROPPED_ON_SESSION_EXPIRY` 감사 로그 | api-spec §6.1 | HttpSessionListener 연계 |
-| SSE `clientIdBoundToOtherSession` 스푸핑 차단 Controller 호출 | Day 4 Registry 구현 | 현재 메서드만 존재 |
-| `?since=` 폴백 쿼리 (`GET /api/executions?since=`) | api-spec §3.3 | Day 5~6 프런트 재연결 연계 구현 |
+| ~~SSE `UNAUTHORIZED` 이벤트 + `SSE_DROPPED_ON_SESSION_EXPIRY` 감사 로그~~ | api-spec §6.1 | ✅ Day 6 회수 (ADR-007 R5) |
+| ~~SSE `clientIdBoundToOtherSession` 스푸핑 차단 Controller 호출~~ | Day 4 Registry 구현 | ✅ Day 6 재할당 방식 채택 (ADR-007 R3) |
+| ~~`?since=` 폴백 쿼리 (`GET /api/executions?since=`)~~ | api-spec §3.3 | ✅ Day 6 /api/executions/delta 신설 (ADR-007 R1) |
 | `@ConfigurationProperties` 레코드 빈 이름 SpEL 패턴 문서화 | Day 4 Bug A 후속 | 향후 `@Scheduled` 추가 시 실수 방지 |
 
-## Day 5~6 (프론트 Vue)
+## Day 5 (완료) — 이력만 보관, 다음 정리 시 삭제
+
+| 항목 | 상태 |
+|---|---|
+| ~~Vuetify 3 스파이크 + 프런트 프로젝트 scaffold~~ | ✅ Day 5 완료 (Vite 8 + TS 6 + Vuetify 3) |
+| ~~Axios withCredentials + XSRF 자동 동봉 + `ApiResponse<T>` 언래핑 인터셉터~~ | ✅ Day 5 완료 |
+| ~~세션 인증(Login.vue) + auth guard + 401 전역 핸들링~~ | ✅ Day 5 완료 |
+| ~~`InterfaceList.vue` (v-data-table-server + 필터 3종 + 페이지네이션)~~ | ✅ Day 5 완료 |
+| ~~`InterfaceFormDialog.vue` (등록·수정, configJson JSON 검증, 프로토콜·스케줄 조건부 필드)~~ | ✅ Day 5 완료 |
+| ~~`OptimisticLockDialog.vue` (`OPTIMISTIC_LOCK_CONFLICT` diff + 3옵션)~~ | ✅ Day 5 완료 (api-spec §3.5) |
+| ~~인터페이스 수동 실행 버튼 + 에러 코드 4종 분기~~ | ✅ Day 5 완료 |
+
+## Day 5~6 (프론트 Vue) — 진행 중
 
 | 항목 | 출처 |
 |---|---|
-| `Vuetify 3` 스파이크 2시간 선행 | planning.md §11 Day 4 선행 |
-| `InterfaceList.vue`, `InterfaceFormDialog.vue`, `ExecutionHistory.vue`, `Dashboard.vue` | planning.md §8 |
-| SSE 클라이언트 재연결 + `Last-Event-ID` 자동 처리 | api-spec.md §6.1 |
-| `OPTIMISTIC_LOCK_CONFLICT` diff 다이얼로그 | api-spec.md §3.5 |
+| **Day 5 E2E 수동 검증** (백엔드 재기동 포함, 기존 PID 20716 상태 불일치 확인) | DAY5-SUMMARY §6 |
+| `ExecutionHistory.vue` + 상세 다이얼로그 + 재처리 버튼 <!-- Day 5/6 진행 중 --> | planning.md §8, api-spec §5 |
+| `Dashboard.vue` (totals·byProtocol·recentFailures·sseConnections) <!-- Day 5/6 진행 중 --> | api-spec.md §6.2 |
+| SSE `EventSource` + `Last-Event-ID` 자동 처리 + `?since=` 폴백 <!-- Day 6 진행 중 --> | api-spec.md §6.1, §3.3 |
+| `OPTIMISTIC_LOCK_CONFLICT` 재충돌 재귀 동작 E2E 검증 | api-spec.md §3.5 |
+| `v-data-table-server` 정렬 헤더 클릭 → `sort` 파라미터 동기화 | DAY5-SUMMARY §6 |
+| `configJson` 금지 키 클라이언트 선검증 | DAY5-SUMMARY §6 UX 개선 |
 
 ## Day 7 (통합 테스트 · 문서 정리 · 제출)
 
