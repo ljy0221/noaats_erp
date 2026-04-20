@@ -57,6 +57,7 @@ ifms:
     emitter-timeout: PT3M
     session-limit: 3
     account-limit: 10
+    reassign-grace: PT2S
   delta:
     rate-window: PT60S
     rate-capacity: 10
