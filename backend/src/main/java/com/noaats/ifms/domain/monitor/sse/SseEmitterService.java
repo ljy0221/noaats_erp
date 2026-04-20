@@ -131,12 +131,23 @@ public class SseEmitterService {
         }
     }
 
-    /** 세션 단위 UNAUTHORIZED 이벤트 송출 후 모든 emitter complete. ADR-007 R5. */
+    /**
+     * 세션 단위 UNAUTHORIZED 이벤트 송출 후 모든 emitter complete. ADR-007 R5.
+     *
+     * <p>리뷰 C2(Day 6 post-review): UNAUTHORIZED는 <strong>세션 로컬</strong>이어야 한다.
+     * 링버퍼는 전역 공유이므로 {@code ringBuffer.append}를 우회하고 ephemeral 이벤트를 직접
+     * 생성한다. 그렇지 않으면 다른 세션이 재연결하며 {@code Last-Event-ID}로 과거 이벤트를
+     * 요청할 때 타 세션의 UNAUTHORIZED가 재전송되어 무고한 세션이 강제 로그아웃된다.</p>
+     */
     public void publishUnauthorizedAndClose(String sessionId) {
         var emitters = registry.snapshotBySession(sessionId);
         if (emitters.isEmpty()) return;
-        SseEvent event = ringBuffer.append(SseEventType.UNAUTHORIZED,
-                Map.of("reason", "SESSION_EXPIRED"));
+        // 링버퍼 외부의 ephemeral 이벤트 — id=0은 Last-Event-ID 재전송 범위 밖.
+        SseEvent event = new SseEvent(
+                0L,
+                SseEventType.UNAUTHORIZED,
+                Map.of("reason", "SESSION_EXPIRED"),
+                java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
         for (SseEmitter em : emitters) {
             sendTo(em, event);
             try { em.complete(); } catch (Exception ignore) { /* swallow */ }
