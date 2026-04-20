@@ -16,7 +16,7 @@ repositories {
 }
 
 ext {
-    testcontainersVersion = '1.20.3'
+    testcontainersVersion = '1.20.5'
 }
 
 dependencies {
