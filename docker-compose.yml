@@ -1,0 +1,74 @@
+# ============================================================
+# IFMS 로컬 개발 Docker Compose
+# ============================================================
+# 사용법:
+#   1. 최초 1회: cp .env.example .env  (필수. 없으면 기동 거부됨)
+#   2. 기본 기동: docker compose up -d
+#   3. Adminer 포함: docker compose --profile dev-tools up -d
+#   4. CLEAN start (스키마/데이터 초기화):
+#        docker compose down -v && docker compose up -d
+#
+# WSL2 / Windows 사용자:
+#   127.0.0.1 바인딩이 간헐적 연결 실패를 일으키면 아래 ports를
+#   "5432:5432"로 수정 (개인 개발 장비에 한함).
+#
+# 운영 주의:
+#   본 compose는 로컬 전용. 운영은 RDS/Managed PostgreSQL 권장.
+#   ddl-auto는 local 프로파일에서만 `update`, prod는 `validate` 고정.
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ifms-postgres
+    restart: unless-stopped
+    # .env 파일 필수. 없으면 컨테이너 기동 실패 (실수로 기본 비밀번호 사용 방지)
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      # 저사양 개발 장비 대응: 최초 기동 완충 30s (최대 대기 = 30 + 5×10 = 80s)
+      start_period: 30s
+    networks:
+      - ifms-net
+
+  adminer:
+    image: adminer:4.8.1
+    container_name: ifms-adminer
+    restart: unless-stopped
+    profiles: ["dev-tools"]
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ifms-net
+
+volumes:
+  postgres_data:
+    # 멀티 프로젝트 공존 대비: ${COMPOSE_PROJECT_NAME}으로 네임스페이스 분리 가능.
+    # 현재는 단일 프로젝트 고정.
+    name: ifms_postgres_data
+
+networks:
+  ifms-net:
+    name: ifms-net
+    driver: bridge

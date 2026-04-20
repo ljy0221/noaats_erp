@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: ifms-backend
+  profiles:
+    # 기본 활성 프로파일. 실행 시 SPRING_PROFILES_ACTIVE 환경변수로 override.
+    default: local
+  jpa:
+    hibernate:
+      # 운영은 validate 고정 (schema.sql + Flyway 이관 경로, erd.md §12)
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: Asia/Seoul
+        format_sql: true
+    open-in-view: false
+    # schema.sql 선행 → Hibernate DDL 후행
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: never   # 운영 기본. local/test에서 always로 override
+
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 3000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+    include-message: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+# 애플리케이션 커스텀 설정
+ifms:
+  advisory-lock:
+    # 0x49464D53 = 'IFMS' ASCII (api-spec.md §9.1) — 일반 실행 lock
+    namespace: ${IFMS_ADVISORY_LOCK_NAMESPACE:1229931347}
+    # 0x49464D54 = 'IFMT' ASCII — 재처리 체인 lock (ADR-005 Q4, lock 2-도메인 분리)
+    retry-namespace: ${IFMS_ADVISORY_LOCK_RETRY_NAMESPACE:1229931348}
+  actor:
+    # ANONYMOUS 해시 salt. .env의 IFMS_ACTOR_ANON_SALT로 반드시 주입해야 함.
+    # prod 프로파일 기동 시 값이 REQUIRED_SET_ME_로 시작하면 fail-fast 거부 (다음 묶음 SaltValidator에서 구현).
+    # 여기에 기본값을 두지 않는다 — VCS에 기본 salt가 박히면 실수로 운영에 반영될 수 있음.
+    anon-salt: ${IFMS_ACTOR_ANON_SALT}
+  # SSE 링버퍼 · 연결 상한 · HEARTBEAT (api-spec.md §6.1, Day 4 SseEmitterService)
+  sse:
+    ring-buffer-size: 1000
+    ring-buffer-ttl: PT5M
+    heartbeat-interval: PT30S
+    emitter-timeout: PT3M
+    session-limit: 3
+    account-limit: 10
+
+logging:
+  level:
+    root: INFO
+    "[com.noaats.ifms]": INFO
+    "[org.hibernate.SQL]": WARN
+    # 쿼리 파라미터 평문 로깅은 운영 금지. local 프로파일에서만 활성화 (application-local.yml 참조).

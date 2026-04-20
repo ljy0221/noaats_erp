@@ -1,0 +1,18 @@
+# Testcontainers PostgreSQL 전제 (JSONB 호환, erd.md v0.5 §13 체크리스트).
+# 실제 URL은 AbstractPostgresTestSupport에서 @DynamicPropertySource로 주입.
+# H2 fallback은 폐기 — JSONB @> · GIN · advisory lock · 부분 UNIQUE 호환 불가.
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  sql:
+    init:
+      mode: always
+      platform: postgresql
+
+logging:
+  level:
+    "[com.noaats.ifms]": DEBUG
+    "[org.testcontainers]": INFO

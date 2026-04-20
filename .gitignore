@@ -1,0 +1,50 @@
+# 환경변수·시크릿
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.prod
+.env.dev
+*.env
+!.env.example
+
+# 시크릿 파일
+*.pem
+*.key
+*.p12
+*.keystore
+secrets/
+
+# Spring 로컬 override
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-local.yaml
+backend/src/main/resources/application-secret.yml
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backend (Gradle / IntelliJ)
+backend/.gradle/
+backend/build/
+backend/out/
+backend/bin/
+backend/!gradle/wrapper/gradle-wrapper.jar
+
+# Frontend (Node / Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.log
+
+# Logs
+*.log
+logs/
+
+# Docker 로컬 데이터 (볼륨은 이름 기반이라 repo에 없지만 방어)
+docker/postgres/data/
