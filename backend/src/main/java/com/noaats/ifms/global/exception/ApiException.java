@@ -13,7 +13,7 @@ import lombok.Getter;
  */
 @Getter
 public abstract sealed class ApiException extends RuntimeException
-        permits BusinessException, ConflictException, NotFoundException {
+        permits BusinessException, ConflictException, NotFoundException, RateLimitException {
 
     private final ErrorCode errorCode;
     private final transient Map<String, Object> extra;
