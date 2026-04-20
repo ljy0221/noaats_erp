@@ -1,6 +1,7 @@
 package com.noaats.ifms.domain.monitor.sse;
 
 import com.noaats.ifms.domain.execution.domain.ExecutionLog;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class ExecutionEventPublisher {
+
+    /** payload timestamps 타임존 — 프런트 ExecutionLogResponse와 일치(KST offset 포함). */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final SseEmitterService sseService;
 
@@ -44,15 +48,29 @@ public class ExecutionEventPublisher {
         sseService.broadcast(SseEventType.EXECUTION_RECOVERED, payload(entry));
     }
 
+    /**
+     * SSE payload — 프런트 {@code ExecutionLogResponse} 계약과 동일한 필드명을 사용한다.
+     * 리뷰 C1(Day 6 post-review): {@code logId}·{@code interfaceId}는 프런트 dedup의
+     * {@code log.id} / in-place 갱신 키와 어긋나 실시간 상태 전이가 UI에 반영되지 않던 결함 수정.
+     */
     private Map<String, Object> payload(ExecutionLog entry) {
         Map<String, Object> map = new HashMap<>();
-        map.put("logId", entry.getId());
-        map.put("interfaceId", entry.getInterfaceConfig().getId());
+        map.put("id", entry.getId());
+        map.put("interfaceConfigId", entry.getInterfaceConfig().getId());
         map.put("interfaceName", entry.getInterfaceConfig().getName());
         map.put("status", entry.getStatus().name());
         map.put("triggeredBy", entry.getTriggeredBy().name());
+        map.put("startedAt",
+                entry.getStartedAt() == null ? null
+                        : entry.getStartedAt().atZone(KST).toOffsetDateTime().toString());
+        map.put("finishedAt",
+                entry.getFinishedAt() == null ? null
+                        : entry.getFinishedAt().atZone(KST).toOffsetDateTime().toString());
         map.put("durationMs", entry.getDurationMs());
+        map.put("retryCount", entry.getRetryCount());
+        map.put("parentLogId", entry.getParent() != null ? entry.getParent().getId() : null);
         map.put("errorCode", entry.getErrorCode() != null ? entry.getErrorCode().name() : null);
+        map.put("errorMessage", entry.getErrorMessage());
         return map;
     }
 }
