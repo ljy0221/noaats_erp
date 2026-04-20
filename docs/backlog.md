@@ -5,32 +5,36 @@
 
 ---
 
-## Day 3 (완료) — 본 섹션은 이력만 보관, 다음 정리 시 삭제
+## Day 3·4 (완료) — 이력만 보관, 다음 정리 시 삭제
 
 | 항목 | 상태 |
 |---|---|
-| ~~`execute` 엔드포인트 501 → 201~~ | ✅ Day 3 완료 (실 기동 검증) |
+| ~~`execute` 엔드포인트 501 → 201~~ | ✅ Day 3 완료 |
 | ~~ADR-005 회의~~ | ✅ Day 3 확정 (Q1=C/Q2=C/Q3=A/Q4=A) |
 | ~~`execution_log` schema.sql~~ | ✅ Day 3 완료 |
-| ~~`OrphanRunningWatchdog` + `@EnableScheduling`~~ | ✅ Day 3 완료 (잔재 0 확인) |
+| ~~`OrphanRunningWatchdog` + `@EnableScheduling`~~ | ✅ Day 3 완료 |
 | ~~`MockExecutor` 5종~~ | ✅ Day 3 완료 |
 | ~~`RetryService` + `RetryGuard` (ADR-005)~~ | ✅ Day 3 완료 |
-| `SaltValidator` 운영 모드 검증 | ⏳ Day 4 이월 (현재 prod 프로파일 미사용) |
+| ~~`SecurityConfig` 완전판 교체~~ | ✅ Day 4 완료 (세션+CSRF+필터 순서+401/403 handler) |
+| ~~`SseEmitterService` + `Last-Event-ID` + 링버퍼 1,000건/5분~~ | ✅ Day 4 완료 (실 기동 검증) |
+| ~~`ConnectionLimitFilter` (세션 3 · 계정 10)~~ | ✅ Day 4 완료 (429 경계 검증) |
+| ~~ArchUnit 3종 규칙 (ADR-006 후속)~~ | ✅ Day 4 완료 (Controller Repository 주입 정리) |
+| ~~`traceId` 통합 필터 (`OncePerRequestFilter`)~~ | ✅ Day 4 완료 (X-Trace-Id 헤더 확인) |
+| ~~`ExecutionEventPublisher` stub → SseEmitterService 교체~~ | ✅ Day 4 완료 |
+| ~~`ActorContext.resolveActor` 세션 기반 실 구현~~ | ✅ Day 4 완료 |
 
-## Day 4 (재처리 · SSE · 대시보드 집계 · Vuetify 스파이크)
+## Day 4 이후 이월 (운영·후속 품질)
 
 | 항목 | 출처 | 비고 |
 |---|---|---|
-| **`SecurityConfig` 완전판 교체** — permitAll 임시 제거, 세션 기반 + SSE 필터 | api-spec.md §2.1, Day 2-A SecurityConfig Javadoc 경고 | 현 permitAll 엔드포인트 리스트 회귀 테스트 필수 |
-| `SseEmitterService` + `Last-Event-ID` + `since` 폴백 + 링버퍼 1,000건/5분 | api-spec.md §3.3 / §6.1 | |
-| `ConnectionLimitFilter` (세션 3 · 계정 10) | api-spec.md §6.1 | |
+| `SaltValidator` 운영 모드 검증 | api-spec §2.3 | 현재 prod 프로파일 미사용 |
 | `DefensiveMaskingFilter` XML StAX 단계 3 추가 (SOAP 대응) | erd.md §3.2 | ExecutionLog XML payload 도입 시 |
-| **ArchUnit 테스트** (ADR-006 후속) | ADR-006 후속 조치 | 3종 규칙: Repository 주입, merge 금지, @Modifying 제한. `test.dependsOn(archTest)` 강제 |
 | `@PreAuthorize` Role 기반 접근 제어 초안 | api-spec.md §2.4 | 현재 단일 OPERATOR만, 분리는 설계만 |
-| `traceId` 통합 필터 (`OncePerRequestFilter`) | Security Day 2-A SHOULD | 요청 최상단에서 발급 |
-| `ExecutionEventPublisher` stub → `SseEmitterService` 본 구현 교체 | Day 3 SSE-stub | 호출 지점 4종(Started/Succeeded/Failed/Recovered) 인터페이스 유지 |
-| `ActorContext.resolveActor` Day 3 stub → 세션 기반 실 구현 | Day 3 ANONYMOUS_LOCAL fallback | 이메일 SHA-256 + EMAIL: 프리픽스 / SYSTEM / ANONYMOUS_{ip해시} 분기 |
-| `RetryGuard` Role=ADMIN 분기 추가 | api-spec §5.3 line 608 | 운영 전환 시 actor 무관 재처리 허용 |
+| `RetryGuard` Role=ADMIN 분기 추가 | api-spec §5.3 | 운영 전환 시 actor 무관 재처리 허용 |
+| SSE `UNAUTHORIZED` 이벤트 + `SSE_DROPPED_ON_SESSION_EXPIRY` 감사 로그 | api-spec §6.1 | HttpSessionListener 연계 |
+| SSE `clientIdBoundToOtherSession` 스푸핑 차단 Controller 호출 | Day 4 Registry 구현 | 현재 메서드만 존재 |
+| `?since=` 폴백 쿼리 (`GET /api/executions?since=`) | api-spec §3.3 | Day 5~6 프런트 재연결 연계 구현 |
+| `@ConfigurationProperties` 레코드 빈 이름 SpEL 패턴 문서화 | Day 4 Bug A 후속 | 향후 `@Scheduled` 추가 시 실수 방지 |
 
 ## Day 5~6 (프론트 Vue)
 
