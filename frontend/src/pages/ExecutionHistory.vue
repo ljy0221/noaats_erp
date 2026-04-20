@@ -65,24 +65,40 @@ function matchesFilter(e: Partial<ExecutionLogResponse>): boolean {
   return e.status === statusFilter.value
 }
 
-function upsertInPlace(e: Partial<ExecutionLogResponse>) {
-  if (e.id == null) return
+/**
+ * 행을 in-place 병합. 존재하지 않으면 no-op.
+ * @returns 병합이 실제로 일어난 기존 행의 idx, 없으면 -1
+ */
+function upsertInPlace(e: Partial<ExecutionLogResponse>): number {
+  if (e.id == null) return -1
   const idx = items.value.findIndex(x => x.id === e.id)
   if (idx >= 0) {
     items.value[idx] = { ...items.value[idx], ...e } as ExecutionLogResponse
   }
+  return idx
 }
 
+/**
+ * 리뷰 C4(유령 행 제거): RUNNING 필터 상태에서 SUCCESS 전이 이벤트가 오면
+ * 테이블의 기존 RUNNING 행이 SUCCESS로 갱신되는데, 이 행은 필터와 불일치한다.
+ * 병합 후 현재 필터와 맞지 않으면 즉시 테이블에서 제거한다.
+ */
 function handleIncoming(e: Partial<ExecutionLogResponse>) {
-  upsertInPlace(e)
+  const existingIdx = upsertInPlace(e)
+
+  // 이미 존재하던 행이 필터와 불일치하게 되면 테이블에서 제거.
+  if (existingIdx >= 0 && !matchesFilter(e)) {
+    items.value.splice(existingIdx, 1)
+    return
+  }
 
   if (!matchesFilter(e)) return
 
-  if (isDefaultView.value && e.id != null && !items.value.some(x => x.id === e.id)) {
+  if (isDefaultView.value && e.id != null && existingIdx < 0) {
     items.value = [e as ExecutionLogResponse, ...items.value].slice(0, size.value)
     return
   }
-  if (e.id != null && !items.value.some(x => x.id === e.id)) {
+  if (e.id != null && existingIdx < 0) {
     pendingNewCount.value++
   }
 }
