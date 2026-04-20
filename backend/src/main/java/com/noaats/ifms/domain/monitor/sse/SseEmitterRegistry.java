@@ -55,6 +55,25 @@ public class SseEmitterRegistry {
         return false;
     }
 
+    /** clientId를 보유한 다른 세션(이 세션 제외)의 (sessionId, emitter)를 반환. 없으면 null. */
+    public SessionEmitter findOtherSessionByClientId(String excludeSessionId, String clientId) {
+        for (Map.Entry<String, ConcurrentMap<String, SseEmitter>> e : bySession.entrySet()) {
+            if (!e.getKey().equals(excludeSessionId) && e.getValue().containsKey(clientId)) {
+                return new SessionEmitter(e.getKey(), e.getValue().get(clientId));
+            }
+        }
+        return null;
+    }
+
+    /** 세션의 모든 emitter 스냅샷 — UNAUTHORIZED 송출용. */
+    public List<SseEmitter> snapshotBySession(String sessionId) {
+        ConcurrentMap<String, SseEmitter> m = bySession.get(sessionId);
+        return m == null ? List.of() : new ArrayList<>(m.values());
+    }
+
+    /** 재할당 대상 식별용 반환 타입. */
+    public record SessionEmitter(String sessionId, SseEmitter emitter) {}
+
     public void register(String sessionId, String actorId, String clientId, SseEmitter emitter) {
         bySession.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>())
                 .put(clientId, emitter);
