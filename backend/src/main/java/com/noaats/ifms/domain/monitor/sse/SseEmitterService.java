@@ -94,7 +94,7 @@ public class SseEmitterService {
         }
     }
 
-    @Scheduled(fixedRateString = "#{@sseProperties.heartbeatInterval.toMillis()}")
+    @Scheduled(fixedRateString = "${ifms.sse.heartbeat-interval}")
     public void heartbeat() {
         if (registry.totalConnectionCount() == 0) {
             return;
