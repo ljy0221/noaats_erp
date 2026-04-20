@@ -4,14 +4,10 @@ import com.noaats.ifms.domain.execution.domain.TriggerType;
 import com.noaats.ifms.domain.execution.dto.ExecutionTriggerResponse;
 import com.noaats.ifms.domain.execution.service.AsyncExecutionRunner;
 import com.noaats.ifms.domain.execution.service.ExecutionTriggerService;
-import com.noaats.ifms.domain.interface_.domain.InterfaceConfig;
 import com.noaats.ifms.domain.interface_.dto.InterfaceConfigDetailResponse;
 import com.noaats.ifms.domain.interface_.dto.InterfaceConfigListView;
 import com.noaats.ifms.domain.interface_.dto.InterfaceConfigRequest;
-import com.noaats.ifms.domain.interface_.repository.InterfaceConfigRepository;
 import com.noaats.ifms.domain.interface_.service.InterfaceConfigService;
-import com.noaats.ifms.global.exception.ErrorCode;
-import com.noaats.ifms.global.exception.NotFoundException;
 import com.noaats.ifms.global.response.ApiResponse;
 import com.noaats.ifms.global.security.ActorContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,12 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 인터페이스 관리 REST 컨트롤러 (api-spec.md §4.1~§4.5).
  *
- * 엔드포인트 5개:
- * - GET /api/interfaces            목록 조회 (필터 + Pageable)
- * - GET /api/interfaces/{id}        단건 조회
- * - POST /api/interfaces            등록
- * - PATCH /api/interfaces/{id}      수정 (낙관적 락, body.statusChange로 activate/deactivate 통합)
- * - POST /api/interfaces/{id}/execute   수동 실행 (Day 3 ExecutionTriggerService 연동)
+ * <h3>ADR-006 Repository 주입 범위</h3>
+ * Controller는 Repository를 직접 주입하지 않는다. 엔티티 lookup은 Service가 담당하며,
+ * 비동기 실행은 {@link AsyncExecutionRunner#runAsync(Long, Long)}가 configId만 받아 내부에서 조회.
  */
 @RestController
 @RequestMapping("/api/interfaces")
@@ -53,7 +46,6 @@ public class InterfaceController {
     private final InterfaceConfigService    service;
     private final ExecutionTriggerService   triggerService;
     private final AsyncExecutionRunner      asyncRunner;
-    private final InterfaceConfigRepository configRepository;
     private final ActorContext              actorContext;
 
     @GetMapping
@@ -91,14 +83,11 @@ public class InterfaceController {
     /**
      * 수동 실행 트리거 (api-spec.md §4.5).
      *
-     * <h3>흐름</h3>
      * <ol>
      *   <li>{@link ExecutionTriggerService#trigger} TX1 — advisory lock + RUNNING INSERT + 커밋</li>
      *   <li>TX1 커밋 후 {@link AsyncExecutionRunner#runAsync} 비동기 트리거 (ADR-001 §6 - 1)</li>
      *   <li>응답: 201 + ExecutionTriggerResponse (logId, status=RUNNING)</li>
      * </ol>
-     *
-     * 실 실행 결과는 SSE(Day 4) 또는 GET /api/executions/{logId}로 조회.
      */
     @PostMapping("/{id}/execute")
     @ResponseStatus(HttpStatus.CREATED)
@@ -112,10 +101,8 @@ public class InterfaceController {
         ExecutionTriggerResponse response = triggerService.trigger(
                 id, TriggerType.MANUAL, actor, ip, ua);
 
-        // TX1 커밋 완료 후 비동기 실행 (Controller 스레드는 즉시 반환)
-        InterfaceConfig config = configRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.INTERFACE_NOT_FOUND));
-        asyncRunner.runAsync(response.logId(), config);
+        // TX1 커밋 완료 후 비동기 실행. AsyncRunner가 내부에서 configId로 InterfaceConfig 조회.
+        asyncRunner.runAsync(response.logId(), id);
 
         return ApiResponse.success(response);
     }
