@@ -57,6 +57,12 @@ ifms:
     emitter-timeout: PT3M
     session-limit: 3
     account-limit: 10
+  delta:
+    rate-window: PT60S
+    rate-capacity: 10
+    since-lower-bound: PT24H
+    default-limit: 500
+    max-limit: 1000
 
 logging:
   level:
