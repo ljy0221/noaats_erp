@@ -208,4 +208,30 @@ public interface ExecutionLogRepository extends JpaRepository<ExecutionLog, Long
         String getErrorCode();
         LocalDateTime getStartedAt();
     }
+
+    // ========== Day 6 delta + 리스트 페이지네이션 (ADR-007 R1) ==========
+
+    /**
+     * delta 조회 — started_at >= since, ASC 정렬, Pageable로 limit+1 건 제한 (ADR-007 R1).
+     */
+    @Query("""
+            SELECT el FROM ExecutionLog el
+            WHERE el.startedAt >= :since
+            ORDER BY el.startedAt ASC
+            """)
+    List<ExecutionLog> findDeltaSince(@Param("since") java.time.LocalDateTime since,
+                                      Pageable pageable);
+
+    /**
+     * 리스트 페이지네이션 조회 — ExecutionHistory.vue에서 사용.
+     * status·interfaceConfigId 필터 지원. 필터 null 시 전체.
+     */
+    @Query("""
+            SELECT el FROM ExecutionLog el
+            WHERE (:status IS NULL OR el.status = :status)
+              AND (:configId IS NULL OR el.interfaceConfig.id = :configId)
+            """)
+    Page<ExecutionLog> findList(@Param("status") ExecutionStatus status,
+                                @Param("configId") Long configId,
+                                Pageable pageable);
 }
