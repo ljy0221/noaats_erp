@@ -192,7 +192,43 @@ f5c16a7 feat(execution): ExecutionQueryService (리스트·상세 조회)
 
 ---
 
-## 9. Day 7 이월
+## 9. Phase 6 Peer Review + 4-에이전트 회의 결과 (2026-04-20 완료)
+
+구현 완료 후 peer code reviewer + @Security + @DBA + @DevilsAdvocate 4명을 병렬 회의에 투입, @Architect가 통합 판정. Critical 4건 + Important 4건 **즉시 수정** / Minor 9건 Day 7 이월 결정.
+
+### 9-1. 즉시 수정 완료 (8건)
+
+| # | ID | 내용 | 커밋 |
+|---|---|---|---|
+| 1 | I4 | `DeltaService.query`에 `@Transactional(readOnly=true)` 추가 (DBA 권고) | 02d6a47 |
+| 1 | I1 | delta 실패 경로(rate limit / since too old / validation)도 감사 로그 1줄 기록 try/finally 패턴 (ADR-007 R2 정확 이행) | 02d6a47 |
+| 1 | I2 | delta 감사 로그의 actor를 추가 hex hash 적용하여 SseEmitterService와 일관성 확보 | 02d6a47 |
+| 2 | C1 | `ExecutionEventPublisher.payload`를 프런트 `ExecutionLogResponse` 계약과 정합 — `logId`→`id`, `interfaceId`→`interfaceConfigId`, `startedAt`·`finishedAt`·`retryCount`·`parentLogId`·`errorMessage` 추가 (실시간 UI 상태 전이 복구) | 15cb3d1 |
+| 3 | C2 | `publishUnauthorizedAndClose`가 ringBuffer.append를 우회하고 ephemeral SseEvent(id=0) 직접 송출 — 타 세션 강제 로그아웃 누출 차단 + `SseUnauthorizedIsolationTest` 추가 | b932fd7 |
+| 4 | C3 | `useExecutionStream` 모듈 스코프 싱글턴 + refCount 리팩터 — Dashboard/ExecutionHistory 동시 마운트 시 EventSource 이중 연결 및 ADR-007 재할당 루프 방지. dedup 키에 terminal status rank 도입 (RUNNING<0, 그 외<1) | a7bc43d |
+| 5 | C4 | `ExecutionHistory.handleIncoming`에서 upsert 후 필터 불일치 시 splice 제거 — RUNNING 필터 + SUCCESS 전이 이벤트에서 발생하던 유령 행 제거 | afa3683 |
+| 6 | I3 | `useDashboardPolling.requestDebouncedRefresh`에 `maxWaitMs=5000` 도입 — trailing-only debounce가 연속 이벤트 20초 눌림으로 Dashboard가 멈추던 문제 해결 | a263101 |
+
+**수정 루프 통계**:
+- 7 커밋 추가, 백엔드 `clean build` SUCCESSFUL, 프런트 `npm run build` 성공
+- 백엔드 테스트 **18 tests / 0 failures / 0 errors** (Day 6 post-review 신규 1: `SseUnauthorizedIsolationTest`)
+- ArchUnit 3종 PASS 유지
+
+### 9-2. Known Issues (Day 7 이월 — 인지된 부채)
+
+| # | 출처 | 내용 | 판정 근거 |
+|---|---|---|---|
+| M1 | Peer Minor | delta 커서 부등호 `>=` vs 프런트 dedup 의존 경계 중복 — nextCursor를 dropped row 기준으로 변경 검토 | 프런트 dedup이 은폐 중, Day 7 cursor 리팩터와 함께 |
+| M2 | Security E | `DeltaCursor` HMAC 서명 부재 — 공격자가 `t=now-23h59m` 위조 가능 (DoS 표면) | 운영 이관 — 프로토타입 범위 외 |
+| M3 | Peer Minor | `DeltaRateLimiter.buckets` Map TTL cleanup 없음 — 장기 운영 시 메모리 압박 | 운영 이관 — 분산 rate limit 전환 시 일괄 해결 |
+| M4 | Peer Minor | `SseEmitterService.subscribe` find+unregister+register TOCTOU — 동시 subscribe race | Day 7 통합 테스트에서 시나리오 추가만. 프로토타입 확률 낮음 |
+| M5 | Devils H | Dashboard 카드 클릭 드릴다운(/history?status=FAILED) 미지원 — UX 감점 | Day 7 UX 작업 5분 |
+| M6 | Devils D | SSE `reconnecting` 상태에서 polling + SSE 이중 refresh 가능 | C3 싱글턴화로 일부 완화됨. Day 7 관찰만 |
+| M7 | Devils G | 새 탭 첫 방문 `/login`에서 sessionStorage clientId 정리 안 됨 (`from.name === undefined` 분기 누락) | Day 7 1줄 수정 — auth.logout() 내부로 이동 |
+| M8 | Peer Minor | 프런트 `ErrorCode` union 타입에 `DELTA_SINCE_TOO_OLD`·`DELTA_RATE_LIMITED` 누락 | Day 7 타입 정확도 |
+| M9 | Peer Minor | 리스트 sort=ASC 상태에서 delta 병합 시 prepend 순서 반전 가능 | Day 7 관찰 — 실 재현 확률 낮음 |
+
+### 9-3. Day 7 이월 원래 항목 (유지)
 
 - Testcontainers 통합 테스트 (JSONB GIN, advisory lock, 재처리 체인)
 - RetryService 통합 테스트 (ADR-005 5종 에러 분기)
@@ -206,4 +242,4 @@ f5c16a7 feat(execution): ExecutionQueryService (리스트·상세 조회)
 
 ---
 
-**Day 6 구현 완료. Phase 6(Peer Review + 4-에이전트 회의)·Phase 7(Day 7 통합 테스트)로 진행.**
+**Day 6 구현 완료 + Phase 6 리뷰 수정 루프 종결.** 백엔드 18 tests / ArchUnit 3 PASS, 프런트 빌드 PASS. 수동 E2E 8 시나리오 + Day 5 회귀 5 시나리오는 Day 7에 실행. Known Issues 9건은 인지된 부채로 Day 7 이월.
