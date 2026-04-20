@@ -134,3 +134,81 @@ export interface ExecuteResponse {
   triggeredBy: TriggerType
   startedAt: string
 }
+
+// ============================================================
+// Day 6 — Execution / Delta / Dashboard 타입 (append-only)
+// ============================================================
+
+/**
+ * 실행 로그 응답 — 리스트/델타/상세 공통.
+ * 백엔드 ExecutionLogResponse 필드에 1:1 매핑.
+ */
+export interface ExecutionLogResponse {
+  id: number
+  interfaceConfigId: number | null
+  interfaceName: string
+  status: ExecutionStatus
+  triggeredBy: TriggerType
+  startedAt: string
+  finishedAt: string | null
+  durationMs: number | null
+  retryCount: number
+  parentLogId: number | null
+  errorMessage: string | null
+}
+
+export interface ExecutionListParams {
+  page?: number
+  size?: number
+  sort?: string
+  status?: ExecutionStatus
+  interfaceConfigId?: number
+}
+
+/**
+ * 델타 응답 (api-spec §5.4) — SSE 재연결 갭 보충.
+ */
+export interface DeltaResponse {
+  items: ExecutionLogResponse[]
+  truncated: boolean
+  nextCursor: string | null
+}
+
+// ---- Dashboard (백엔드 monitor/dto record와 1:1 매핑) ----
+
+/** 백엔드 TotalStats record 매핑. */
+export interface TotalStats {
+  success: number
+  failed: number
+  running: number
+  total: number
+}
+
+/** 백엔드 ProtocolStats record 매핑. */
+export interface ProtocolStats {
+  protocol: string
+  success: number
+  failed: number
+  running: number
+}
+
+/** 백엔드 RecentFailure record 매핑. */
+export interface RecentFailure {
+  id: number
+  interfaceName: string
+  errorCode: string
+  startedAt: string
+}
+
+/**
+ * 백엔드 DashboardResponse record 매핑 (api-spec §6.2).
+ * 필드: generatedAt, since, totals, byProtocol, recentFailures, sseConnections
+ */
+export interface DashboardResponse {
+  generatedAt: string
+  since: string
+  totals: TotalStats
+  byProtocol: ProtocolStats[]
+  recentFailures: RecentFailure[]
+  sseConnections: number
+}
