@@ -9,12 +9,14 @@ export const vuetify = createVuetify({
     themes: {
       light: {
         colors: {
-          primary: '#1E3A8A',
-          secondary: '#475569',
-          success: '#16A34A',
-          error: '#DC2626',
-          warning: '#D97706',
-          info: '#2563EB',
+          primary:    '#1E4FA8',
+          secondary:  '#3A6FCE',
+          success:    '#1E8A4C',
+          error:      '#C62828',
+          warning:    '#ED8936',
+          info:       '#1E88E5',
+          surface:    '#FFFFFF',
+          background: '#F4F6FA',
         },
       },
     },
