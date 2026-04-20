@@ -30,13 +30,16 @@ public class SseEmitterService {
     private final SseEmitterRegistry registry;
     private final SseRingBuffer ringBuffer;
     private final SseProperties props;
+    private final SseReassignmentScheduler reassignScheduler;
 
     public SseEmitterService(SseEmitterRegistry registry,
                              SseRingBuffer ringBuffer,
-                             SseProperties props) {
+                             SseProperties props,
+                             SseReassignmentScheduler reassignScheduler) {
         this.registry = registry;
         this.ringBuffer = ringBuffer;
         this.props = props;
+        this.reassignScheduler = reassignScheduler;
     }
 
     /**
@@ -49,6 +52,15 @@ public class SseEmitterService {
                                 String actorId,
                                 String clientId,
                                 Long lastEventId) {
+        // ADR-007 R3: 다른 세션이 동일 clientId 보유 시 grace complete + 재할당
+        var prev = registry.findOtherSessionByClientId(sessionId, clientId);
+        if (prev != null) {
+            log.info("event=CLIENT_ID_REASSIGNED clientId={} old_session={} new_session={} actor={}",
+                    clientId, hash(prev.sessionId()), hash(sessionId), hash(actorId));
+            registry.unregister(prev.sessionId(), clientId);
+            reassignScheduler.scheduleComplete(prev.emitter());
+        }
+
         SseEmitter emitter = new SseEmitter(props.emitterTimeout().toMillis());
         emitter.onCompletion(() -> {
             registry.unregister(sessionId, clientId);
@@ -117,5 +129,24 @@ public class SseEmitterService {
         } catch (IllegalStateException ex) {
             log.debug("Emitter already completed: {}", ex.getMessage());
         }
+    }
+
+    /** 세션 단위 UNAUTHORIZED 이벤트 송출 후 모든 emitter complete. ADR-007 R5. */
+    public void publishUnauthorizedAndClose(String sessionId) {
+        var emitters = registry.snapshotBySession(sessionId);
+        if (emitters.isEmpty()) return;
+        SseEvent event = ringBuffer.append(SseEventType.UNAUTHORIZED,
+                Map.of("reason", "SESSION_EXPIRED"));
+        for (SseEmitter em : emitters) {
+            sendTo(em, event);
+            try { em.complete(); } catch (Exception ignore) { /* swallow */ }
+        }
+        log.info("event=SSE_DROPPED_ON_SESSION_EXPIRY sessionId={} count={}",
+                hash(sessionId), emitters.size());
+    }
+
+    private static String hash(String s) {
+        if (s == null) return "null";
+        return Integer.toHexString(s.hashCode());
     }
 }
