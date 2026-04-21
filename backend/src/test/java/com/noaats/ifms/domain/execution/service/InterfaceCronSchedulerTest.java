@@ -88,6 +88,8 @@ class InterfaceCronSchedulerTest {
         verify(triggerService, times(1)).trigger(eq(10L), eq(TriggerType.SCHEDULER), eq("SYSTEM"), isNull(), isNull());
         // markScheduled(now) 호출 → lastScheduledAt == now
         assertThat(c.getLastScheduledAt()).isEqualTo(now);
+        // Day 8 실 E2E 회귀(@Transactional self-invocation) 방어 — save 명시 호출 검증
+        verify(configRepository, times(1)).save(c);
     }
 
     @Test
@@ -103,6 +105,8 @@ class InterfaceCronSchedulerTest {
 
         verify(triggerService, never()).trigger(any(), any(), any(), any(), any());
         assertThat(c.getLastScheduledAt()).isEqualTo(last);
+        // 발화 안 된 경로: save 호출 없어야 함 (lastScheduledAt 변화 없음)
+        verify(configRepository, never()).save(any());
     }
 
     @Test
@@ -117,6 +121,8 @@ class InterfaceCronSchedulerTest {
         // 첫 tick은 catch-up 안 함 → trigger 호출 0, lastScheduledAt=now로 초기화
         verify(triggerService, never()).trigger(any(), any(), any(), any(), any());
         assertThat(c.getLastScheduledAt()).isEqualTo(now);
+        // 최초 기록도 DB 영속화 필요 (E2E 회귀 방어)
+        verify(configRepository, times(1)).save(c);
     }
 
     @Test
@@ -136,6 +142,8 @@ class InterfaceCronSchedulerTest {
 
         // ConflictException이어도 lastScheduledAt은 갱신 (다음 tick에 또 재시도하면 무한 DUP 로그)
         assertThat(c.getLastScheduledAt()).isEqualTo(now);
+        // 갱신된 lastScheduledAt 영속화 (무한 DUP 로그 방어의 전제)
+        verify(configRepository, times(1)).save(c);
     }
 
     @Test

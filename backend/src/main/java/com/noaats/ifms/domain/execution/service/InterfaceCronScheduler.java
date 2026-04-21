@@ -16,7 +16,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * CRON 스케줄러 (Day 8). planning.md §3 필수구현 — scheduleType=CRON 인터페이스의 자동 실행.
@@ -52,6 +51,10 @@ public class InterfaceCronScheduler {
     /**
      * 1분 주기 폴링. @Scheduled(zone)은 cron 표현식에만 적용되므로 fixedDelay는 무관.
      * initialDelay로 앱 기동 직후 폭주 방지 (OrphanRunningWatchdog 1분 지연과 동일).
+     * <p>
+     * @Transactional을 {@code sweep}에 선언해도 Spring AOP는 프록시 경유가 아닌 self-invocation(`tick()`)에
+     * 트랜잭션을 적용하지 않으므로(Day 3 project_day3_pitfalls 학습), markScheduled()의 영속화는
+     * dirty checking이 아니라 {@link InterfaceConfigRepository#save(Object)} 명시 호출로 보장한다.
      */
     @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT1M")
     public void sweep() {
@@ -60,9 +63,7 @@ public class InterfaceCronScheduler {
 
     /**
      * 테스트용 공개 진입점. @Scheduled 어노테이션 없이 now를 직접 주입.
-     * Spring Transaction 경계 안에서 InterfaceConfig의 dirty checking이 동작하도록 @Transactional.
      */
-    @Transactional
     public void tick(LocalDateTime now) {
         Specification<InterfaceConfig> activeCron = (root, query, cb) -> cb.and(
                 cb.equal(root.get("status"), InterfaceStatus.ACTIVE),
@@ -95,6 +96,7 @@ public class InterfaceCronScheduler {
         if (last == null) {
             // 최초 기동: catch-up 안 함. 첫 tick을 기준점으로만 기록.
             c.markScheduled(now);
+            configRepository.save(c);
             return;
         }
 
@@ -121,5 +123,6 @@ public class InterfaceCronScheduler {
                     c.getId(), c.getCronExpression(), e.getClass().getSimpleName());
         }
         c.markScheduled(now);
+        configRepository.save(c);
     }
 }
