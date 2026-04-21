@@ -94,7 +94,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 60s
+      # Gradle cold cache + Spring Boot init 대비 90s 여유 (formula: 90s grace + 120s retries = 210s max)
+      start_period: 90s
     networks:
       - ifms-net
 
