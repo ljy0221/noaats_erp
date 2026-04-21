@@ -46,6 +46,8 @@ export const useAuthStore = defineStore('auth', () => {
     authenticated.value = false
     username.value = null
     localStorage.removeItem('ifms:username')
+    // M7: 로그아웃·세션 만료 시 SSE clientId도 함께 정리. router의 /login 진입 분기와 이중 안전.
+    sessionStorage.removeItem('sse.clientId')
   }
 
   return { authenticated, username, ready, bootstrap, login, logout }

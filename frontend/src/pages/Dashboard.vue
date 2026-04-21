@@ -60,12 +60,16 @@ onMounted(async () => {
         </v-card>
       </v-col>
       <v-col cols="12" md="3">
-        <v-card color="error" variant="tonal">
-          <v-card-text>
-            <div class="text-overline">실패</div>
-            <div class="text-h3 font-weight-bold">{{ poll.data.value.totals.failed }}</div>
-          </v-card-text>
-        </v-card>
+        <router-link :to="{ name: 'history', query: { status: 'FAILED' } }"
+                     class="text-decoration-none">
+          <v-card color="error" variant="tonal" hover>
+            <v-card-text>
+              <div class="text-overline">실패</div>
+              <div class="text-h3 font-weight-bold">{{ poll.data.value.totals.failed }}</div>
+              <div class="text-caption mt-1">실행 이력으로 이동 →</div>
+            </v-card-text>
+          </v-card>
+        </router-link>
       </v-col>
     </v-row>
 
@@ -106,7 +110,11 @@ onMounted(async () => {
             </v-chip>
           </v-card-title>
           <v-list>
-            <v-list-item v-for="f in poll.data.value.recentFailures" :key="f.id">
+            <v-list-item
+              v-for="f in poll.data.value.recentFailures"
+              :key="f.id"
+              :to="{ name: 'history', query: { status: 'FAILED' } }"
+              link>
               <template #prepend>
                 <StatusChip status="FAILED" />
               </template>

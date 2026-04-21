@@ -6,17 +6,29 @@ import { listExecutions, retryExecution, getExecution } from '@/api/executions'
 import { useExecutionStream } from '@/composables/useExecutionStream'
 import { useToastStore } from '@/stores/toast'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import StatusChip from '@/components/StatusChip.vue'
 
 const toast = useToastStore()
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const page = ref(0)
 const size = ref(20)
 const sort = ref<'startedAt,desc' | 'startedAt,asc'>('startedAt,desc')
-const statusFilter = ref<ExecutionStatus | null>(null)
+
+// 진입 시 ?status= 쿼리(예: Dashboard 드릴다운, M5)를 초기 필터로 동기화.
+// 알 수 없는 값이 오면 무시(전체).
+const ALLOWED_STATUSES: ExecutionStatus[] = ['RUNNING', 'SUCCESS', 'FAILED', 'RECOVERED']
+const initialStatus = (() => {
+  const raw = route.query.status
+  if (typeof raw === 'string' && (ALLOWED_STATUSES as string[]).includes(raw)) {
+    return raw as ExecutionStatus
+  }
+  return null
+})()
+const statusFilter = ref<ExecutionStatus | null>(initialStatus)
 
 const items = ref<ExecutionLogResponse[]>([])
 const total = ref(0)

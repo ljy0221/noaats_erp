@@ -27,8 +27,10 @@ export type ErrorCode =
   | 'RETRY_TRUNCATED_BLOCKED'
   | 'PAYLOAD_TOO_LARGE'
   | 'TOO_MANY_CONNECTIONS'
+  | 'DELTA_RATE_LIMITED'
   | 'INTERNAL_ERROR'
   | 'NOT_IMPLEMENTED'
+  | 'DELTA_SINCE_TOO_OLD'
 
 export interface ApiResponse<T> {
   success: boolean

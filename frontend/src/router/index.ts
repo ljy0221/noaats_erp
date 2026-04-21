@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 export const router = createRouter({
@@ -44,12 +44,14 @@ export const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormalized) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!auth.ready) {
     await auth.bootstrap()
   }
-  if (to.name === 'login' && from.name && from.name !== 'login') {
+  // M7: 새 탭 첫 방문(from.name === undefined)도 정리되도록 분기 단순화.
+  // 추가 안전장치는 auth.clear에 통합되어 있다 (이중 안전).
+  if (to.name === 'login') {
     sessionStorage.removeItem('sse.clientId')
   }
   const isPublic = to.meta.public === true
