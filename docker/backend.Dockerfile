@@ -14,7 +14,7 @@ COPY backend/gradlew /workspace/gradlew
 COPY backend/gradle /workspace/gradle
 COPY backend/build.gradle /workspace/build.gradle
 COPY backend/settings.gradle /workspace/settings.gradle
-RUN sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
+RUN chmod +x gradlew && ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
 
 # 소스 복사 후 bootJar
 COPY backend/src /workspace/src
