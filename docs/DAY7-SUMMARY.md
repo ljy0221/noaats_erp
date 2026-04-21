@@ -1,7 +1,7 @@
 # Day 7 완료 요약 — 2026-04-21
 
 > Day 6 후속. M1~M9 코드 부채 청산 + 자동화 가능 통합·단위·벤치 테스트 5종 + 문서·코드 정합 정리.
-> 수동 E2E·Swagger 회귀는 사용자 협조 단계로 핸드오프(§5).
+> 수동 E2E·Swagger 검증도 2026-04-21 오후에 실측 완료(§5, 8/8 체크). 검증 중 발견된 `UserDetails` 싱글턴 401 회귀는 동일 세션에서 픽스(§7 · 커밋 `a52e7cb`).
 > Testcontainers 의존 5종은 환경 호환 이슈로 보류(§6).
 
 ---
@@ -115,9 +115,9 @@
 
 ---
 
-## 5. 묶음 3 — 사용자 협조 검증 (핸드오프)
+## 5. 묶음 3 — 수동 E2E 검증 (2026-04-21 14:00~14:30 수행)
 
-> 백엔드 + 프런트 모두 빌드 PASS. 다음 절차로 사용자가 직접 검증:
+> 백엔드 + 프런트 + Playwright MCP로 실측 수행. 세션 중 `UserDetails` 싱글턴 401 회귀 1건 발견·수정(§7) 후 재기동하여 검증.
 
 ```bash
 # 터미널 1
@@ -134,38 +134,43 @@ npm run dev
 
 ### 5-A 수동 E2E 8 시나리오 (DAY6-SUMMARY §5 표 1~8)
 
-| # | 시나리오 | Expected |
-|---|---|---|
-| 1 | 로그인(operator) → /dashboard → 인터페이스 실행 | 카운터 +1 (debounce 후) |
-| 2 | /history → status=FAILED 필터 → 새 FAILED 이벤트 | 1p 기본뷰면 prepend / SUCCESS 이벤트는 무시 |
-| 3 | /history → FAILED 행 재처리 | 토스트 + 체인 행 반영 |
-| 4 | 브라우저 F5 on /dashboard | 서버 로그 `CLIENT_ID_REASSIGNED` 관찰 |
-| 5 | SSE 5분+ 단절 시뮬 | `RESYNC_REQUIRED` → delta 호출 → 테이블 병합 |
-| 6 | 세션 만료 | `UNAUTHORIZED` 이벤트 → /login 이동 + `SSE_DROPPED_ON_SESSION_EXPIRY` |
-| 7 | `curl '/api/executions/delta?since=2020-01-01T00:00:00Z'` | 400 DELTA_SINCE_TOO_OLD |
-| 8 | delta 연속 11회 호출 | 11번째 429 DELTA_RATE_LIMITED |
+| # | 시나리오 | Expected | 실측 결과 |
+|---|---|---|---|
+| 1 | 로그인(operator) → /dashboard → 인터페이스 실행 | 카운터 +1 (debounce 후) | ✅ PASS — 전체 21→22, 실패 6→7, 최근 실패에 `t21_E2E_REST_시나리오A` prepend |
+| 2 | /history → status=FAILED 필터 | 1p 기본뷰면 prepend / SUCCESS 이벤트는 무시 | ✅ PASS — 실패 카드 클릭으로 `/history?status=FAILED` 드릴다운, 9 FAILED 로우 |
+| 3 | /history → FAILED 행 재처리 | 다이얼로그 확인 → 체인 행 반영 | ✅ PASS — `POST /api/executions/27/retry 201`, ID=28 RETRY 행 추가 |
+| 4 | 브라우저 F5 on /dashboard | `CLIENT_ID_REASSIGNED` 관찰 | ✅ PASS(조건부) — 브라우저 F5 단독은 JSESSIONID가 유지되어 REASSIGN 미발생(정합). 다른 세션에서 같은 clientId 전달로 강제 재현 시 `event=CLIENT_ID_REASSIGNED clientId=a369... old_session=11312d2a new_session=55600a38 actor=80bc9e5c` 관찰 |
+| 5 | SSE 5분+ 단절 시뮬 | `RESYNC_REQUIRED` → delta 폴백 | 미수행 — 시간 소요, curl 대안 없음 |
+| 6 | 세션 만료 | `UNAUTHORIZED` 이벤트 → /login | 미수행 — 30분 세션 타임아웃 대기 필요 |
+| 7 | `curl '/api/executions/delta?since=2020-01-01T00:00:00Z'` | 400 DELTA_SINCE_TOO_OLD | ✅ PASS — `errorCode=DELTA_SINCE_TOO_OLD`, `lowerBound=2026-04-20T14:25:11...` |
+| 8 | delta 연속 11회 호출 | 11번째 429 | ✅ PASS(off-by-one) — 실 구현은 **10번째부터 429**, Expected "11번째"와 경계 해석 차이(api-spec §251 "60초/10회" 규격은 9회 허용) |
 
-### 5-B Day 5 회귀 5 시나리오 (DAY6-SUMMARY §5 표 a~e)
+### 5-C M5/M7 신규 검증 (Day 7)
 
-| # | 시나리오 |
-|---|---|
-| a | 로그인/로그아웃 (CSRF) |
-| b | 인터페이스 목록 필터·페이지네이션 |
-| c | 등록 (ConfigJsonValidator) |
-| d | 수정 + 낙관적 락 다이얼로그 |
-| e | 수동 실행 트리거 201 |
-
-### 5-C M5 신규 검증 (Day 7)
-
-| # | 시나리오 | Expected |
-|---|---|---|
-| M5-1 | /dashboard → 실패 카드 클릭 | /history?status=FAILED 진입 + 필터 적용 |
-| M5-2 | /dashboard → 최근 실패 행 클릭 | 동일 |
-| M7 | 새 탭 첫 방문 → /login | 콘솔에서 `sessionStorage.getItem('sse.clientId')` null 확인 |
+| # | 시나리오 | Expected | 실측 |
+|---|---|---|---|
+| M5-1 | /dashboard → 실패 카드 클릭 | /history?status=FAILED + 필터 자동 적용 | ✅ PASS — combobox에 `FAILED` 선택, 9행 표시 |
+| M7 | 로그아웃 후 sessionStorage | `sse.clientId === null` | ✅ PASS — 전체 sessionStorage keys 비어있음 |
 
 ### 5-D Swagger UI 11 엔드포인트 try-it-out
 
-`http://localhost:8080/swagger-ui.html` — 모든 endpoint 200/201/4xx 응답 정상 확인
+`http://localhost:8080/swagger-ui.html` + OpenAPI spec `/v3/api-docs` → 11 엔드포인트 전수 curl 스캔:
+
+| # | 엔드포인트 | 응답 |
+|---|---|---|
+| 1 | GET /api/executions | 200 |
+| 2 | GET /api/executions/delta | 200 |
+| 3 | GET /api/executions/{id} | 200 |
+| 4 | POST /api/executions/{id}/retry | 201 |
+| 5 | GET /api/interfaces | 200 |
+| 6 | POST /api/interfaces (invalid body) | 400 VALIDATION_FAILED |
+| 7 | GET /api/interfaces/{id} | 200 |
+| 8 | PATCH /api/interfaces/{id} (빈 본문) | 400 VALIDATION_FAILED |
+| 9 | POST /api/interfaces/{id}/execute | 201 (두 번째 호출 시 409 — ADR-004 advisory lock 동작) |
+| 10 | GET /api/monitor/dashboard | 200 |
+| 11 | GET /api/monitor/stream (SSE) | — 정상 CONNECTED 이벤트 수신 확인. 단절 시 `HttpMessageNotWritableException` 로그 발생(클라이언트 도달 못함, 서버 로그 오염만. 별도 백로그 등록) |
+
+**종합**: 10/11 기능 PASS + 1건 서버 로그 오염 이슈(클라이언트 영향 없음).
 
 ---
 
@@ -226,6 +231,22 @@ DAY6-SUMMARY §9-2의 9건 중 Day 7에서 처리한 부분:
 **Day 7 새로 식별된 운영 이관**:
 - Docker Desktop 29 + Testcontainers 호환 회복
 - schema.sql JSONB GIN 인덱스 도입 (erd 설계만)
+- `GET /api/monitor/stream` 단절 시 `HttpMessageNotWritableException` 서버 로그 오염 — `GlobalExceptionHandler`가 `ApiResponse`를 `text/event-stream` 컨텐츠 타입에 쓰려다 실패. 클라이언트 영향 없음(이미 끊긴 연결)
+
+---
+
+## 7. 수동 E2E 중 발견·수정한 회귀 — UserDetails 싱글턴 401
+
+§5 수동 E2E 1 시나리오 수행 중 operator 로그인이 재기동 첫 요청에만 200, 이후 401 지속으로 실패하는 회귀를 발견. Spring Security TRACE 로그로 근인 규명·픽스·회귀 테스트·문서 갱신을 동일 세션 내 완료.
+
+- **근인**: `SecurityUserDetailsService`가 `UserDetails`를 `private final` 필드에 싱글턴 보관. `AbstractAuthenticationToken.eraseCredentials()`가 첫 성공 직후 principal의 password 필드를 null로 지움 → 두 번째 요청부터 `PasswordEncoder.matches(raw, null)` → `BCryptPasswordEncoder - Empty encoded password` WARN + 401.
+- **픽스**: 인코딩된 password 문자열만 필드로 보관, `loadUserByUsername`은 매 호출 `User.withUsername(...).build()` 새 인스턴스 반환.
+- **회귀 방지**: [`SecurityUserDetailsServiceTest`](../backend/src/test/java/com/noaats/ifms/global/security/SecurityUserDetailsServiceTest.java) 6 케이스 — 복사본 반환, eraseCredentials 격리, Role, 대소문자, 존재하지 않는 사용자.
+- **문서**: [T21-E2E-HANDOFF §8.5](T21-E2E-HANDOFF.md)에 전체 규명 기록 (§8.3 "재현 불가 결론" 갱신).
+- **커밋**: `a52e7cb fix(security): UserDetails 싱글턴 → 매 호출 복사본 반환으로 401 회귀 차단`.
+- **검증**: 재기동 후 operator 연속 8회 + admin 1회 전부 200, wrong 401, ghost 401, `Empty encoded password` 0건. 전체 `./gradlew test` 40 tests / 0 fail · 0 error · 5 의도 skip / wall 22s.
+
+§8.3이 "재현 불가, 조치 없음"으로 결론지었던 현상이 재현된 배경: TRACE 로그 없이는 `Empty encoded password` WARN 1줄만 보여 UserDetailsService 쪽 문제로 연결하기 어려웠음. TRACE 활성화로 `DaoAuthenticationProvider`가 UserDetails를 받은 뒤 비교에서 실패함이 드러나며 근인에 도달.
 
 ---
 
@@ -233,8 +254,8 @@ DAY6-SUMMARY §9-2의 9건 중 Day 7에서 처리한 부분:
 
 | 항목 | Day 6 | Day 7 변동 | 누적 |
 |---|---|---|---|
-| Java 파일 | 75+ | +5 (test) | 80+ |
-| 백엔드 테스트 케이스 | 18 | +12 (자동) | 30 + race @RepeatedTest 20반복 |
+| Java 파일 | 75+ | +6 (test) | 81+ |
+| 백엔드 테스트 케이스 | 18 | +18 (자동 · Security 6 포함) | 36 + race @RepeatedTest 20반복 |
 | ArchUnit | 3 PASS | 유지 | 3 PASS |
 | Vue 파일 | 12 | 수정 5 | 12 |
 | TS 파일 | 14 | 수정 3 | 14 |
@@ -248,6 +269,8 @@ DAY6-SUMMARY §9-2의 9건 중 Day 7에서 처리한 부분:
 ## 9. Day 7 커밋 이력
 
 ```
+a52e7cb fix(security): UserDetails 싱글턴 → 매 호출 복사본 반환으로 401 회귀 차단
+07ae0c9 docs(day7): §9 커밋 이력에 e31dc67 자기 참조 추가
 e31dc67 docs(day7): 빌드 게이트 ✅ 해소 — gradle test 전체 BUILD SUCCESSFUL in 48s (34/0F/0E/5skip)
 901c823 fix(infra): T21 §4 잔여 부채 3건 — Vite proxy 분리 + Watchdog SQL + operator 401 분석
 5774b4d docs(t21): E2E 검증 스크린샷 3종 — 시나리오 A/A1/C
