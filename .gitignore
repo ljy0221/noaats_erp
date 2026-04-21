@@ -48,3 +48,6 @@ logs/
 
 # Docker 로컬 데이터 (볼륨은 이름 기반이라 repo에 없지만 방어)
 docker/postgres/data/
+
+# Git worktrees (subagent-driven-development 격리 환경)
+.worktrees/
