@@ -1,0 +1,4 @@
+NAME            IMAGE                 COMMAND                  SERVICE    CREATED          STATUS                    PORTS
+ifms-backend    ifms-backend:local    "/app/entrypoint.sh"     backend    4 minutes ago    Up 4 minutes (healthy)    127.0.0.1:8080->8080/tcp
+ifms-frontend   ifms-frontend:local   "/docker-entrypoint.…"   frontend   12 minutes ago   Up 11 minutes             127.0.0.1:8090->80/tcp
+ifms-postgres   postgres:16-alpine    "docker-entrypoint.s…"   postgres   12 minutes ago   Up 12 minutes (healthy)   127.0.0.1:5432->5432/tcp
