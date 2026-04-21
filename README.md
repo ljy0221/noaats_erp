@@ -15,17 +15,24 @@
 
 ---
 
-## 2. 빠른 실행 (3 명령어)
+## 2. 빠른 실행
+
+### 옵션 A: 호스트 개발 (기존, Day 5~7 워크플로)
+
+PostgreSQL만 Docker로 띄우고 backend/frontend는 호스트에서 실행.
 
 ```bash
-# 1) PostgreSQL 16 기동
+# 1) 최초 1회: .env 생성
+cp .env.example .env
+
+# 2) PostgreSQL 16 기동
 docker-compose up -d
 
-# 2) 백엔드 (8080)
+# 3) 백엔드 (8080)
 cd backend
 ./gradlew bootRun
 
-# 3) 프런트 (Vite dev 서버, 5173, 백엔드 프록시)
+# 4) 프런트 (Vite dev 서버, 5173, 백엔드 프록시)
 cd frontend
 npm install
 npm run dev
@@ -33,11 +40,83 @@ npm run dev
 
 브라우저에서 <http://localhost:5173> 접속 → `operator@ifms.local` / `operator1234`로 로그인 (또는 `admin@ifms.local` / `admin1234`).
 
+### 옵션 B: 전체 Docker 기동 (Day 8 추가)
+
+한 줄로 postgres + backend + frontend 전부 컨테이너로.
+
+```bash
+# 최초 1회: .env 생성 (필수)
+cp .env.example .env
+
+# 전체 기동 (첫 빌드 ~5~8분)
+docker compose --profile full up -d --build
+
+# 상태 확인 (backend healthy까지 ~90s)
+docker compose --profile full ps
+```
+
+브라우저에서 <http://localhost:8090> 접속 (80 아님 — Windows IIS 포트 충돌 회피).
+
+기동 차이:
+- 옵션 A: 소스 수정 → hot reload (개발용)
+- 옵션 B: 이미지 기반, 운영 모드 데모용. 소스 수정 시 `--build` 재실행 필요.
+
+정리: `docker compose --profile full down` (볼륨까지 초기화하려면 `down -v`).
+
 ### 환경 의존
+
 - Docker Desktop 또는 Docker Engine
-- JDK 17+
-- Node.js 20+
-- 포트 사용: 5432 (PostgreSQL), 8080 (백엔드), 5173 (프런트), 2375 (Docker daemon, Testcontainers 옵션)
+- JDK 17+ (옵션 A 선택 시)
+- Node.js 20+ (옵션 A 선택 시)
+- 포트 사용: 5432 (PostgreSQL), 8080 (백엔드), 5173 (프런트 dev) 또는 8090 (프런트 Docker), 2375 (Docker daemon, Testcontainers 옵션)
+
+---
+
+## 2-A. CRON 자동 실행 검증 (Day 8 신규)
+
+`scheduleType=CRON` 인터페이스는 `InterfaceCronScheduler`(1분 폴링)가 `cronExpression`대로 자동 실행하고 `ExecutionLog.triggeredBy=SCHEDULER`로 기록한다.
+
+### 등록 예시 (Swagger UI / curl)
+
+```bash
+curl -X POST http://localhost:8080/api/interfaces \
+  -H "Content-Type: application/json" \
+  --cookie "JSESSIONID=<로그인 후 세션>" \
+  -H "X-XSRF-TOKEN: <CSRF 토큰>" \
+  -d '{
+    "name": "cron-demo-REST",
+    "protocol": "REST",
+    "endpoint": "http://mock/cron-demo",
+    "httpMethod": "GET",
+    "scheduleType": "CRON",
+    "cronExpression": "0 * * * * *",
+    "timeoutSeconds": 30,
+    "maxRetryCount": 3,
+    "configJson": {}
+  }'
+```
+
+cronExpression은 **6-필드 Spring 형식**(초 분 시 일 월 요일). `0 * * * * *` = 매 분 0초.
+
+### 확인
+
+등록 후 최대 2분 대기 → ExecutionHistory(`/history`)에서 **triggeredBy=SCHEDULER** 필터.
+또는:
+
+```bash
+curl http://localhost:8080/api/executions?triggeredBy=SCHEDULER
+```
+
+### 동작 원칙
+
+- **최초 기동은 catch-up 안 함**: `last_scheduled_at` NULL → 첫 폴링 tick 시점을 기준점으로 기록만. 과거 누락 발화는 소급하지 않는다.
+- **advisory lock + uk_log_running 보호막 재사용**: 스케줄러 시점과 사용자의 수동 트리거가 동시에 같은 인터페이스를 치면 한 쪽만 성공(409 DUPLICATE_RUNNING).
+- **분 단위 이상 권장**: 스케줄러 폴링이 1분이므로 초 단위 cron은 1분에 1회만 발화한다.
+
+### 스크린샷
+
+- `docs/screenshots/day8-scheduler-history.png` — ExecutionHistory에서 SCHEDULER 필터 결과 (수동 검증 단계에서 촬영)
+- `docs/screenshots/day8-docker-compose-ps.png` — `docker compose --profile full ps` healthy 출력 (수동 검증 단계에서 촬영)
 
 ---
 
