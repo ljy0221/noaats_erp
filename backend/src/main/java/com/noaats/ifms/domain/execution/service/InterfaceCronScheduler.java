@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li><b>최초 기동(lastScheduledAt=null)</b>: catch-up 안 함. 첫 tick 시점을 기준으로만 다음 발화 계산.</li>
  *   <li><b>동시 실행 방어</b>: ExecutionTriggerService가 이미 advisory lock + uk_log_running 보유 → 본 스케줄러는 가드 없이 호출만.</li>
  *   <li><b>예외 흡수</b>: ConflictException 등은 로그만 남기고 다음 tick으로. 단일 인터페이스 실패가 전체 스케줄러를 죽이지 않음.</li>
- *   <li><b>actor</b>: ActorContext.SYSTEM 상수 사용. SCHEDULER 경로 전용.</li>
+ *   <li><b>actor</b>: {@link ActorContext#systemActor()} 사용. SCHEDULER 경로 전용.</li>
  *   <li><b>타임존</b>: cron·now 모두 Asia/Seoul (application.yml hibernate.jdbc.time_zone 정합).</li>
  * </ul>
  */
@@ -47,6 +47,7 @@ public class InterfaceCronScheduler {
 
     private final InterfaceConfigRepository configRepository;
     private final ExecutionTriggerService triggerService;
+    private final ActorContext actorContext;
 
     /**
      * 1분 주기 폴링. @Scheduled(zone)은 cron 표현식에만 적용되므로 fixedDelay는 무관.
@@ -74,7 +75,7 @@ public class InterfaceCronScheduler {
         for (InterfaceConfig c : targets) {
             try {
                 processOne(c, now);
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 log.warn("CRON 스케줄러 단일 인터페이스 처리 실패 id={} name={} cron={} : {}",
                         c.getId(), c.getName(), c.getCronExpression(), e.toString());
             }
@@ -111,7 +112,7 @@ public class InterfaceCronScheduler {
 
         // 발화 시점 경과 → 트리거 호출
         try {
-            triggerService.trigger(c.getId(), TriggerType.SCHEDULER, ActorContext.SYSTEM, null, null);
+            triggerService.trigger(c.getId(), TriggerType.SCHEDULER, actorContext.systemActor(), null, null);
             log.info("CRON 트리거 id={} name={} cron='{}' last={} now={}",
                     c.getId(), c.getName(), c.getCronExpression(), last, now);
         } catch (RuntimeException e) {

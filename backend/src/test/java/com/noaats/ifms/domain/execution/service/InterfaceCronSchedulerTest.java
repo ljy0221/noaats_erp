@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.noaats.ifms.domain.execution.domain.TriggerType;
 import com.noaats.ifms.domain.execution.dto.ExecutionTriggerResponse;
 import com.noaats.ifms.domain.interface_.domain.InterfaceConfig;
+import com.noaats.ifms.global.security.ActorContext;
 import com.noaats.ifms.domain.interface_.domain.InterfaceStatus;
 import com.noaats.ifms.domain.interface_.domain.ProtocolType;
 import com.noaats.ifms.domain.interface_.domain.ScheduleType;
@@ -36,6 +37,7 @@ class InterfaceCronSchedulerTest {
 
     @Mock InterfaceConfigRepository configRepository;
     @Mock ExecutionTriggerService triggerService;
+    @Mock ActorContext actorContext;
 
     @InjectMocks InterfaceCronScheduler scheduler;
 
@@ -75,6 +77,7 @@ class InterfaceCronSchedulerTest {
 
         // cron "0 * * * * *" = 매 분 0초 → 12:01, 12:02, 12:03, 12:04, 12:05 발화 예정
         InterfaceConfig c = cronConfig(10L, "0 * * * * *", last);
+        when(actorContext.systemActor()).thenReturn("SYSTEM");
         when(configRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
                 .thenReturn(List.of(c));
         when(triggerService.trigger(eq(10L), eq(TriggerType.SCHEDULER), eq("SYSTEM"), isNull(), isNull()))
@@ -121,6 +124,7 @@ class InterfaceCronSchedulerTest {
         LocalDateTime now = LocalDateTime.of(2026, 4, 22, 12, 5, 30);
         LocalDateTime last = LocalDateTime.of(2026, 4, 22, 12, 0, 0);
         InterfaceConfig c = cronConfig(13L, "0 * * * * *", last);
+        when(actorContext.systemActor()).thenReturn("SYSTEM");
         when(configRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
                 .thenReturn(List.of(c));
         when(triggerService.trigger(any(), any(), any(), any(), any()))
