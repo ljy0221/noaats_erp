@@ -69,15 +69,49 @@
 
 실측 JUnit XML: `backend/build/test-results/test/TEST-*.xml`.
 
+### 4-A' 전체 빌드 게이트 (2026-04-21 13:25 후속 실행, BUILD SUCCESSFUL in 48s)
+
+핸드오프 §1 "0 byte 멈춤" 원인 규명 — Gradle daemon flush가 아니라 **`Start-Process cmd.exe /c gradlew.bat ...` 호출 시 cmd가 작업 디렉토리에서 `gradlew.bat`을 찾지 못하고 PATH만 검색**해서 `'gradlew.bat' is not recognized` 즉시 실패였음. **`.\gradlew.bat`로 명시 경로** 사용하면 정상 동작 확인.
+
+| 항목 | 값 |
+|---|---|
+| 명령 | `Start-Process cmd.exe -ArgumentList "/c",".\gradlew.bat test --no-daemon --console=plain > log 2>&1"` |
+| 결과 | **BUILD SUCCESSFUL in 48s** |
+| 실행 테스트 클래스 | 13개 |
+| 합계 | **34 tests, 0 failures, 0 errors, 5 skipped, test wall 9.306s** |
+| 실 실행 (skip 제외) | **29 PASS, 0 FAIL** |
+
+| 클래스 | tests | F | E | S | time(s) |
+|---|---|---|---|---|---|
+| `archunit.ArchitectureTest` | 3 | 0 | 0 | 0 | 5.760 |
+| `domain.execution.repository.RetryGuardSnapshotQueryTest` | 3 | 0 | 0 | **3** | 0.001 |
+| `domain.execution.service.DeltaCursorTest` | 4 | 0 | 0 | 0 | 0.106 |
+| `domain.execution.service.DeltaRateLimiterTest` | 3 | 0 | 0 | 0 | 0.010 |
+| `domain.execution.service.DeltaServiceTest` | 4 | 0 | 0 | 0 | 2.156 |
+| `domain.execution.service.RetryGuardSnapshotPolicyTest` | 8 | 0 | 0 | 0 | 0.037 |
+| `domain.interface_.dto.SnapshotFieldParityTest` | 1 | 0 | 0 | 0 | 0.053 |
+| `domain.monitor.sse.SseReassignmentSchedulerTest` | 2 | 0 | 0 | 0 | 0.808 |
+| `domain.monitor.sse.SseSessionExpiryListenerTest` | 1 | 0 | 0 | 0 | 0.277 |
+| `domain.monitor.sse.SseSubscribeRaceTest` | 1 | 0 | 0 | **1** | 0.0 |
+| `domain.monitor.sse.SseUnauthorizedIsolationTest` | 1 | 0 | 0 | 0 | 0.038 |
+| `global.masking.MaskingRuleBenchTest` | 1 | 0 | 0 | **1** | 0.0 |
+| `global.response.ApiResponseSerializationTest` | 2 | 0 | 0 | 0 | 0.060 |
+
+5건 skip 모두 **의도된 게이팅** (회귀 아님):
+
+- `RetryGuardSnapshotQueryTest` 3건 — `@EnabledIfEnvironmentVariable("DOCKER_HOST")` (Testcontainers 환경 게이팅)
+- `SseSubscribeRaceTest` 1건 — `@Disabled` (M4 race 실재 재현, 픽스 후 활성)
+- `MaskingRuleBenchTest` 1건 — `@EnabledIfEnvironmentVariable("RUN_BENCH=1")` (벤치 게이팅)
+
 ### 4-B 비실행 게이트 (환경 이슈로 수치 미확보)
 
 | 검증 | 상태 | 사유 |
 |---|---|---|
-| `./gradlew clean test` 전체 (Day 6 18 + Day 7 12 + race 20반복) | 부분 실행 (4묶음만 확인) | `run_in_background` + gradle daemon stdout pipe-buffering → 0 byte 멈춤, 좀비 daemon 누적 (핸드오프 §1) |
+| ~~`./gradlew clean test` 전체~~ | **✅ 해소** (§4-A' 참고) | 0 byte 멈춤은 cmd 작업 디렉토리에서 `.bat` 미해석 이슈, daemon flush 무관 |
 | MaskingRule p95 (RUN_BENCH=1) | 미확보 | PowerShell foreground에서도 `> Task :test` 단계 후 CPU 미사용 hang 재현. 코드·SHOULD 조건은 보존, 수동 실행 경로는 `MaskingRuleBenchTest` Javadoc에 명문화 |
 | `SseSubscribeRaceTest` @RepeatedTest(20) | @Disabled | M4 race 실재 재현 (커밋 030306b) — `SseEmitterService.subscribe` synchronized 픽스 후 unblock |
 
-**결론**: 자동 검증 4묶음 14 PASS로 Day 7 신규 코드/테스트의 최소 회귀 게이트 통과. 전체 `./gradlew test` 및 벤치 수치는 환경 이슈 해소 후 별도 수집.
+**결론**: 전체 `./gradlew test` 게이트 **34 tests / 0 fail · 0 error · 5 의도 skip / wall 48s** 통과. Day 7 신규 코드 + T21 후속 부채 처리(Watchdog SQL 픽스 포함) 모두 회귀 0건. 미확보는 마스킹 벤치 수치 1건뿐이며 코드/SHOULD는 보존.
 
 ---
 
@@ -214,6 +248,13 @@ DAY6-SUMMARY §9-2의 9건 중 Day 7에서 처리한 부분:
 ## 9. Day 7 커밋 이력
 
 ```
+901c823 fix(infra): T21 §4 잔여 부채 3건 — Vite proxy 분리 + Watchdog SQL + operator 401 분석
+5774b4d docs(t21): E2E 검증 스크린샷 3종 — 시나리오 A/A1/C
+b0bfb8d fix(retry): Tuple 이름 기반 매핑으로 RetryGuardSnapshot ClassCastException 회귀 차단
+946760d docs(day7): T18 §4 빌드·테스트 상태 — 최소 검증 4묶음 14 PASS 인용
+dbba32c docs(day7): 차기 세션 인계 메모 — 빌드 게이트 미완 사유 + 최소 검증 묶음
+030306b test(sse): SseSubscribeRaceTest @Disabled — M4 race가 실재 재현됨, 픽스 후 활성
+bb8f605 feat(day7): MaskingRule 벤치 + SSE race(M4) + Jackson ALWAYS + 문서 정합 + DAY7-SUMMARY + README
 b133106 fix(frontend): M5 Dashboard→/history 드릴다운 + M7 sessionStorage 정리 + M8 ErrorCode 21종
 4ae7fd9 test(interface): SnapshotFieldParityTest — Detail↔Snapshot 필드 회귀 보호
 02ba634 test(retry): RetryGuard 단위 8 케이스 — ADR-005 Q1·Q2·SYSTEM·ANONYMOUS·truncated·inactive·not_leaf·all_pass
@@ -222,7 +263,7 @@ a773bd3 docs(day7): implementation plan — 21 task
 8d0adab docs(day7): spec — 통합 테스트·부채 청산·제출 핸드오프
 ```
 
-(이후 빌드 게이트 + DAY7-SUMMARY + README 커밋 추가 예정)
+Day 7 총 13개 커밋 완료. 본 SUMMARY §4 최소 검증 14 PASS·§9 커밋 이력·README 인덱스·T21 E2E 스크린샷 3종 모두 이미 반영됨. 잔여는 §5 수동 E2E·Swagger 묶음 3의 사용자 실측뿐.
 
 ---
 

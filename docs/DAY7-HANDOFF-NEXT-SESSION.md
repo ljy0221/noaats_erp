@@ -5,6 +5,11 @@
 >
 > **2026-04-21 오후 추가** — T21 E2E 수행 중 재처리 회귀 1건 발견·픽스 완료.
 > 상세는 [T21-E2E-HANDOFF.md](T21-E2E-HANDOFF.md). 본 문서에 기술된 빌드 게이트 이슈와는 별도 트랙.
+>
+> **2026-04-21 13:25 추가** — 빌드 게이트 ✅ **해소**. 전체 `./gradlew test` BUILD SUCCESSFUL in 48s
+> (34 tests / 0F · 0E · 5 의도 skip). 0 byte 멈춤 원인은 daemon flush가 아니라 cmd가 작업
+> 디렉토리에서 `gradlew.bat`을 못 찾고 PATH만 검색한 것. **`.\gradlew.bat`로 명시 경로** 사용
+> 시 정상 동작. 상세 결과는 [DAY7-SUMMARY.md §4-A'](DAY7-SUMMARY.md).
 
 ---
 
