@@ -248,6 +248,7 @@ DAY6-SUMMARY §9-2의 9건 중 Day 7에서 처리한 부분:
 ## 9. Day 7 커밋 이력
 
 ```
+e31dc67 docs(day7): 빌드 게이트 ✅ 해소 — gradle test 전체 BUILD SUCCESSFUL in 48s (34/0F/0E/5skip)
 901c823 fix(infra): T21 §4 잔여 부채 3건 — Vite proxy 분리 + Watchdog SQL + operator 401 분석
 5774b4d docs(t21): E2E 검증 스크린샷 3종 — 시나리오 A/A1/C
 b0bfb8d fix(retry): Tuple 이름 기반 매핑으로 RetryGuardSnapshot ClassCastException 회귀 차단
