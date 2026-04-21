@@ -20,6 +20,18 @@
 -- =============================================================================
 
 -- =============================================================================
+-- interface_config : last_scheduled_at 컬럼 (Day 8, CRON 스케줄러)
+-- =============================================================================
+-- Hibernate ddl-auto=update는 신규 컬럼을 NULL 허용으로 추가하므로 local/개발은 이 블록 없이도 동작.
+-- 운영(validate)은 schema.sql이 DDL 원천이므로 명시.
+-- continue-on-error=true이므로 이미 존재 시 오류 무시.
+ALTER TABLE interface_config
+    ADD COLUMN IF NOT EXISTS last_scheduled_at TIMESTAMP NULL;
+
+COMMENT ON COLUMN interface_config.last_scheduled_at IS
+    'CRON 스케줄러 직전 발화 시각. InterfaceCronScheduler가 cronExpression.next(lastScheduledAt) 평가에 사용. MANUAL은 항상 NULL.';
+
+-- =============================================================================
 -- interface_config : CHECK 제약
 -- =============================================================================
 ALTER TABLE interface_config
