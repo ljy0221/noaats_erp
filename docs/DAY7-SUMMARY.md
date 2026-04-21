@@ -56,14 +56,28 @@
 
 ## 4. 빌드·테스트 상태
 
-| 검증 | 결과 |
-|---|---|
-| `./gradlew clean test` (Day 6 18 테스트 + Day 7 자동 12 케이스 + race 20반복) | (T18 게이트 결과) |
-| `npm run build` (vue-tsc + vite) | PASS — 빌드 산출물 dist/ |
-| ArchUnit 3 PASS | 유지 |
-| MaskingRule p95 (RUN_BENCH=1) | (T9 게이트 결과) |
+### 4-A 최소 검증 묶음 (2026-04-21 실행, PowerShell `gradlew.bat --no-daemon --console=plain`)
 
-**빌드 게이트 결과는 T18 실행 후 본 §4에 인용**. (제출 직전 갱신)
+| 검증 | 테스트 수 | 결과 | 소요 |
+|---|---|---|---|
+| `RetryGuardSnapshotPolicyTest` (POJO · ADR-005) | 8 | PASS 0F/0E/0S | 0.071s |
+| `SnapshotFieldParityTest` (리플렉션 · Detail↔Snapshot) | 1 | PASS 0F/0E/0S | 0.008s |
+| `ArchitectureTest` (ArchUnit 3룰) | 3 | PASS 0F/0E/0S | 4.102s |
+| `ApiResponseSerializationTest` (@SpringBootTest · T15) | 2 | PASS 0F/0E/0S | 0.576s |
+| **합계 (4묶음 통합 실행)** | **14** | **PASS 0F/0E/0S** | **29s (wall · gradle 포함)** |
+| `npm run build` (vue-tsc + vite) | — | PASS — `dist/` 생성 | — |
+
+실측 JUnit XML: `backend/build/test-results/test/TEST-*.xml`.
+
+### 4-B 비실행 게이트 (환경 이슈로 수치 미확보)
+
+| 검증 | 상태 | 사유 |
+|---|---|---|
+| `./gradlew clean test` 전체 (Day 6 18 + Day 7 12 + race 20반복) | 부분 실행 (4묶음만 확인) | `run_in_background` + gradle daemon stdout pipe-buffering → 0 byte 멈춤, 좀비 daemon 누적 (핸드오프 §1) |
+| MaskingRule p95 (RUN_BENCH=1) | 미확보 | PowerShell foreground에서도 `> Task :test` 단계 후 CPU 미사용 hang 재현. 코드·SHOULD 조건은 보존, 수동 실행 경로는 `MaskingRuleBenchTest` Javadoc에 명문화 |
+| `SseSubscribeRaceTest` @RepeatedTest(20) | @Disabled | M4 race 실재 재현 (커밋 030306b) — `SseEmitterService.subscribe` synchronized 픽스 후 unblock |
+
+**결론**: 자동 검증 4묶음 14 PASS로 Day 7 신규 코드/테스트의 최소 회귀 게이트 통과. 전체 `./gradlew test` 및 벤치 수치는 환경 이슈 해소 후 별도 수집.
 
 ---
 
