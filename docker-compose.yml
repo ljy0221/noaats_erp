@@ -62,6 +62,60 @@ services:
     networks:
       - ifms-net
 
+  backend:
+    image: ifms-backend:local
+    container_name: ifms-backend
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 기본 application.yml 값을 env로 override
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      IFMS_ACTOR_ANON_SALT: ${IFMS_ACTOR_ANON_SALT}
+      IFMS_ADVISORY_LOCK_NAMESPACE: ${IFMS_ADVISORY_LOCK_NAMESPACE:-1229931347}
+      IFMS_ADVISORY_LOCK_RETRY_NAMESPACE: ${IFMS_ADVISORY_LOCK_RETRY_NAMESPACE:-1229931348}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      TZ: Asia/Seoul
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseContainerSupport"
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      # swagger-ui는 백엔드 기동 완료의 명확한 증거 (actuator starter 미도입)
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/swagger-ui/index.html || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks:
+      - ifms-net
+
+  frontend:
+    image: ifms-frontend:local
+    container_name: ifms-frontend
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8090:80"
+    environment:
+      TZ: Asia/Seoul
+    networks:
+      - ifms-net
+
 volumes:
   postgres_data:
     # 멀티 프로젝트 공존 대비: ${COMPOSE_PROJECT_NAME}으로 네임스페이스 분리 가능.
