@@ -54,7 +54,7 @@ public class RetryService {
                                           String userAgent) {
         // 1. 단일 SELECT — 부모 + 인터페이스 + 루트 actor 한 번에 (ADR-005 §5.2)
         RetryGuardSnapshot snap = logRepository.findRetryGuardSnapshot(parentLogId)
-                .map(RetryGuardSnapshot::fromRow)
+                .map(RetryGuardSnapshot::fromTuple)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.EXECUTION_NOT_FOUND));
 
         // 2. advisory lock 1차 — 일반 실행과 동일 도메인 (interface_config_id)

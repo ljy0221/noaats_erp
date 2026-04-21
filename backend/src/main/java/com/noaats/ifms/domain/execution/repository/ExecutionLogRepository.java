@@ -2,6 +2,7 @@ package com.noaats.ifms.domain.execution.repository;
 
 import com.noaats.ifms.domain.execution.domain.ExecutionLog;
 import com.noaats.ifms.domain.execution.domain.ExecutionStatus;
+import jakarta.persistence.Tuple;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -100,18 +101,20 @@ public interface ExecutionLogRepository extends JpaRepository<ExecutionLog, Long
      * 부모 로그 + 인터페이스 상태 + 체인 루트 actor를 한 번에 가져온다.
      *
      * Native query 사용 이유: 루트 actor를 서브쿼리로 가져오는 데 JPQL이 표현 부족.
-     * 반환은 Object[] (id, actor, retryCount, maxRetrySnapshot, payloadTruncated, status,
-     * rootId, rootActor, icStatus).
+     *
+     * 반환 타입: {@link Tuple} (이름 기반 추출). 9개 컬럼 모두 AS alias 필수 —
+     * alias가 {@code RetryGuardSnapshot#fromTuple} 추출 키와 1:1 매칭.
+     * (T21 회의 결정: Object[] 위치 기반은 컬럼 순서 변경 시 권한 경계 우회 리스크)
      *
      * 호출 후 Service 레이어에서 분기 — RetryGuard가 책임.
      */
     @Query(value = """
-        SELECT p.id,
-               p.actor_id,
-               p.retry_count,
-               p.max_retry_snapshot,
-               p.payload_truncated,
-               p.status,
+        SELECT p.id                                                     AS parent_id,
+               p.actor_id                                               AS parent_actor,
+               p.retry_count                                            AS parent_retry_count,
+               p.max_retry_snapshot                                     AS max_retry_snapshot,
+               p.payload_truncated                                      AS payload_truncated,
+               p.status                                                 AS parent_status,
                COALESCE(p.root_log_id, p.id)                            AS root_id,
                (SELECT actor_id
                   FROM execution_log
@@ -121,7 +124,7 @@ public interface ExecutionLogRepository extends JpaRepository<ExecutionLog, Long
         JOIN   interface_config ic ON ic.id = p.interface_config_id
         WHERE  p.id = :parentId
         """, nativeQuery = true)
-    Optional<Object[]> findRetryGuardSnapshot(@Param("parentId") Long parentId);
+    Optional<Tuple> findRetryGuardSnapshot(@Param("parentId") Long parentId);
 
     /**
      * 시작 시 1회 전수 고아 복구 (ADR-001 §5, erd §8.3).

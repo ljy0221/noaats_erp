@@ -2,6 +2,7 @@ package com.noaats.ifms.domain.execution.service;
 
 import com.noaats.ifms.domain.execution.domain.ExecutionStatus;
 import com.noaats.ifms.domain.interface_.domain.InterfaceStatus;
+import jakarta.persistence.Tuple;
 
 /**
  * 재처리 검증을 위한 단일 SELECT 결과 (ADR-005 §5.2).
@@ -29,20 +30,23 @@ public record RetryGuardSnapshot(
         InterfaceStatus interfaceStatus
 ) {
     /**
-     * Repository native query Object[] → record 변환.
-     * 컬럼 순서는 {@code findRetryGuardSnapshot} JPQL의 SELECT 절과 1:1 매칭.
+     * Repository native query Tuple → record 변환 (이름 기반).
+     *
+     * <p>T21 회의 결정으로 {@code Object[]} 위치 기반에서 전환.
+     * 추출 키는 {@code findRetryGuardSnapshot} SELECT의 AS alias와 1:1 매칭.
+     * 위치가 아닌 alias 이름에 의존하므로 컬럼 순서 재배치·신규 컬럼 삽입에 면역.
      */
-    public static RetryGuardSnapshot fromRow(Object[] row) {
+    public static RetryGuardSnapshot fromTuple(Tuple row) {
         return new RetryGuardSnapshot(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                ((Number) row[2]).intValue(),
-                ((Number) row[3]).intValue(),
-                (boolean) row[4],
-                ExecutionStatus.valueOf((String) row[5]),
-                ((Number) row[6]).longValue(),
-                (String) row[7],
-                InterfaceStatus.valueOf((String) row[8])
+                ((Number)  row.get("parent_id")).longValue(),
+                (String)   row.get("parent_actor"),
+                ((Number)  row.get("parent_retry_count")).intValue(),
+                ((Number)  row.get("max_retry_snapshot")).intValue(),
+                (Boolean)  row.get("payload_truncated"),
+                ExecutionStatus.valueOf((String) row.get("parent_status")),
+                ((Number)  row.get("root_id")).longValue(),
+                (String)   row.get("root_actor"),
+                InterfaceStatus.valueOf((String) row.get("ic_status"))
         );
     }
 }
