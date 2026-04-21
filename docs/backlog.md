@@ -120,6 +120,7 @@
 | advisory lock SQL `(int,int)` → 1-arg bigint 인코딩 전환 (`(namespace<<32)\|(id&0xFFFFFFFF)`) | Day 3 Bug A 후속, IDENTITY가 INT 범위(~21억) 임계 접근 시 |
 | INACTIVE 격리와 별개의 `MAINTENANCE` 상태 분리 — "신규 차단 + 재처리 허용" | ADR-005 Q3 Future Work |
 | `max_retry_snapshot` 정책 변경의 활성 체인 가시화 대시보드 패널 | ADR-005 Q1 수용 리스크 |
+| `SseEmitterService.subscribe` TOCTOU race (M4) | Day 7 `SseSubscribeRaceTest`로 race 재현 확인 (현재 @Disabled). 동시 subscribe 시 동일 clientId가 두 세션에 공존 가능 — 단일 인스턴스 운영 확률 낮음. 픽스(synchronized 또는 Registry atomic compute-and-register) 도입 시 테스트 unblock |
 | `DeltaCursor` HMAC 서명 (M2) | 공격자가 cursor `t=now-23h59m` 위조 가능 — DoS 표면. 분산 환경 전환 시 일괄 도입 |
 | `DeltaRateLimiter.buckets` Map TTL cleanup (M3) | 장기 운영 시 메모리 압박. 분산 rate limit(Redis/Bucket4j) 전환 시 일괄 해결 |
 | SSE `reconnecting` 상태 polling+SSE 이중 refresh 관찰 (M6) | C3 싱글턴화로 확률 낮음. APM 도입 후 실 측정 기준 결정 |
