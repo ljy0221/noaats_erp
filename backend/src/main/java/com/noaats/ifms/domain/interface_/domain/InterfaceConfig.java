@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.AccessLevel;
@@ -95,6 +96,13 @@ public class InterfaceConfig extends BaseTimeEntity {
     @Column(name = "version", nullable = false)
     private Long version = 0L;
 
+    /**
+     * CRON 스케줄러 직전 발화 시각. InterfaceCronScheduler가 cronExpression.next(lastScheduledAt) 평가에 사용.
+     * MANUAL 스케줄 타입은 항상 NULL. 재기동 시 NULL이면 첫 폴링 tick 시점을 기준으로 다음 발화를 계산(catch-up 안 함).
+     */
+    @Column(name = "last_scheduled_at")
+    private LocalDateTime lastScheduledAt;
+
     @Builder
     private InterfaceConfig(String name,
                             String description,
@@ -148,6 +156,14 @@ public class InterfaceConfig extends BaseTimeEntity {
 
     public void activate() {
         this.status = InterfaceStatus.ACTIVE;
+    }
+
+    /**
+     * 스케줄러가 방금 트리거했음을 기록. CronExpression.next(lastScheduledAt) 평가 기준점 갱신.
+     * @param firedAt InterfaceCronScheduler tick 시각 (LocalDateTime.now())
+     */
+    public void markScheduled(LocalDateTime firedAt) {
+        this.lastScheduledAt = firedAt;
     }
 
     public boolean isActive() {
