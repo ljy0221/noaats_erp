@@ -10,8 +10,8 @@
 - **언어/프레임워크**: Java 17 + Spring Boot 3.3.5 (백엔드) / Vue 3 + TypeScript 6 + Vuetify 3 + Vite 8 (프런트)
 - **저장소**: PostgreSQL 16 (JSONB + advisory lock 활용)
 - **실시간**: Server-Sent Events (Last-Event-ID 재동기화 + grace 재할당, ADR-007)
-- **빌드 기간**: 2026-04-15 ~ 2026-04-21 (1주일, Day 1~7)
-- **상태**: 백엔드 빌드 PASS / 프런트 빌드 PASS / 자동 테스트 30+ / ArchUnit 3 PASS
+- **빌드 기간**: 2026-04-15 ~ 2026-04-21 (1주일, Day 1~8)
+- **상태**: 백엔드 빌드 PASS / 프런트 빌드 PASS / 자동 테스트 45 (0 fail / 5 skip) / ArchUnit 3 PASS / Docker 풀 스모크 PASS
 
 ---
 
@@ -115,8 +115,9 @@ curl http://localhost:8080/api/executions?triggeredBy=SCHEDULER
 
 ### 스크린샷
 
-- `docs/screenshots/day8-scheduler-history.png` — ExecutionHistory에서 SCHEDULER 필터 결과 (수동 검증 단계에서 촬영)
-- `docs/screenshots/day8-docker-compose-ps.png` — `docker compose --profile full ps` healthy 출력 (수동 검증 단계에서 촬영)
+- [`docs/screenshots/day8-scheduler-history.png`](docs/screenshots/day8-scheduler-history.png) — ExecutionHistory에서 SCHEDULER 행 표시 (Playwright 자동 촬영, ID 30 day8_cron_demo RUNNING)
+- [`docs/screenshots/day8-dashboard-sse-open.png`](docs/screenshots/day8-dashboard-sse-open.png) — 대시보드 카드 4종 + 우상단 SSE open 녹색
+- [`docs/screenshots/day8-docker-compose-ps.txt`](docs/screenshots/day8-docker-compose-ps.txt) — `docker compose --profile full ps` healthy 출력 (텍스트)
 
 ---
 
@@ -164,7 +165,7 @@ curl http://localhost:8080/api/executions?triggeredBy=SCHEDULER
 
 ```bash
 cd backend
-./gradlew test          # 30+ 케이스 (단위 + ArchUnit 3)
+./gradlew test          # 45 케이스 (단위 + ArchUnit 3 + CRON 스케줄러 5)
 ./gradlew test -i       # 상세 로그
 RUN_BENCH=1 ./gradlew test --tests "MaskingRuleBenchTest"   # 마스킹 p95 벤치
 ```
