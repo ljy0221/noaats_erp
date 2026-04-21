@@ -67,16 +67,20 @@ public interface ExecutionLogRepository extends JpaRepository<ExecutionLog, Long
      * timeout_seconds + 60s를 초과한 RUNNING을 반환 → 호출자가 FAILED + STARTUP_RECOVERY로 마감.
      * 60초 grace는 Mock 실행기 평균 지연(~1s) + JVM GC 여유.
      *
-     * Native SQL 사용: PostgreSQL `INTERVAL '60 sec' + (timeout_seconds * INTERVAL '1 sec')`
-     * 표현이 Hibernate JPQL 산술 INTERVAL 호환성 문제를 회피한다.
+     * <h3>표현식 형태</h3>
+     * 의미: {@code started_at < now - 60s - timeout_seconds*1s}.
+     * 좌변에 양수 합으로 옮긴 형태({@code started_at + 60s + timeout_seconds*1s < now})를 사용한다.
+     * 이전 형태({@code now - INTERVAL - INTERVAL})는 PostgreSQL 직접 실행은 정상이지만
+     * Hibernate 6의 native SQL prepared-statement 변환 단계에서
+     * {@code timestamp < interval} 비교로 해석되는 회귀가 관측됨 (T21 §4.1).
      */
     @Query(value = """
         SELECT el.*
         FROM   execution_log    el
         JOIN   interface_config ic ON ic.id = el.interface_config_id
         WHERE  el.status = 'RUNNING'
-          AND  el.started_at < :now - INTERVAL '60 seconds'
-                                  - (ic.timeout_seconds * INTERVAL '1 second')
+          AND  el.started_at + INTERVAL '60 seconds'
+                             + (ic.timeout_seconds * INTERVAL '1 second') < :now
         """, nativeQuery = true)
     List<ExecutionLog> findOrphanRunning(@Param("now") LocalDateTime now);
 

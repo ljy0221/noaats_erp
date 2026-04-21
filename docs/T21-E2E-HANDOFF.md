@@ -170,3 +170,78 @@ $env:DOCKER_HOST="npipe:////./pipe/dockerDesktopLinuxEngine"
 - `RetryService` — 호출부 교체
 - `RetryGuardSnapshotQueryTest` — 회귀 테스트 3건 (DOCKER_HOST 게이팅)
 - 본 문서 (`docs/T21-E2E-HANDOFF.md`)
+
+---
+
+## 8. 후속 세션 — §4 부채 3건 처리 결과 (2026-04-21, T21 인계 직후)
+
+§6 권장 순서 ③ → ② → ① 역순으로 처리(영향이 작은 순). 결과 요약:
+
+### 8.1 ✅ §4.3 — Vite proxy `/login`·`/logout` 경로 분리
+
+**채택**: 옵션 A (`bypass`로 POST만 백엔드 프록시, GET/기타는 SPA 폴백). 옵션 B(엔드포인트 rename)는 Spring formLogin 계약(`loginProcessingUrl`, CSRF prime, 라우터 가드 401 핸들링) 변경 범위가 너무 커서 거절.
+
+| 파일 | 변경 |
+|---|---|
+| [frontend/vite.config.ts:24-35](../frontend/vite.config.ts#L24-L35) | `/login`·`/logout`에 `bypass: (req) => req.method === 'POST' ? undefined : req.url` 추가. POST만 8080으로 프록시, GET 등은 Vite가 SPA index.html로 서빙 |
+
+**검증** (Vite dev 5175 + 백엔드 8080):
+
+```text
+GET  /login  → HTTP 200, text/html (SPA index.html)        # 이전: 500 INTERNAL_ERROR JSON
+POST /login  → HTTP 401 (백엔드 formLogin 도달, 자격증명 거부)  # 정상 프록시
+```
+
+### 8.2 ✅ §4.1 — OrphanRunningWatchdog SQL 타입 오류
+
+**원인 확정**: 핸드오프 §4.1 추정대로 `:now - INTERVAL - INTERVAL` 형태가 Hibernate 6 prepared-statement 변환 단계에서 `timestamp < interval` 비교로 해석되는 회귀. 직전 인스턴스 로그(ifms-backend3.log:105-109)에서 정확히 재현 확인:
+
+```text
+2026-04-21 12:34:21.682 ERROR ... SqlExceptionHelper - ERROR: operator does not exist: timestamp without time zone < interval
+2026-04-21 12:34:21.689 ERROR ... TaskUtils$LoggingErrorHandler - Unexpected error occurred in scheduled task
+```
+
+PostgreSQL 직접 prepared 실행은 정상이라 SQL 자체는 무결, Hibernate 변환 단계의 모호성이 주범.
+
+**픽스**: 좌변 양수 합 형태로 변경 (의미 동치, 우변에서 interval 산술 제거).
+
+| 파일 | 변경 |
+|---|---|
+| [backend/.../repository/ExecutionLogRepository.java:73-86](../backend/src/main/java/com/noaats/ifms/domain/execution/repository/ExecutionLogRepository.java#L73-L86) | `started_at < :now - INTERVAL '60s' - (timeout_seconds * INTERVAL '1s')` → `started_at + INTERVAL '60s' + (timeout_seconds * INTERVAL '1s') < :now`. Javadoc에 회귀 사유 명시 |
+
+**검증**:
+
+- PostgreSQL 직접 `PREPARE`/`EXECUTE` 정상 (timestamp ↔ timestamp 비교)
+- timeout 30s 인터페이스에 1시간 전 RUNNING 1건(ID=26) 인위 삽입 → 수정된 SQL이 prepared로 정확히 잡음 확인
+- 백엔드 재기동(13:04:10) 후 Hibernate 통합 watchdog sweep 검증 — 13:10:10에 첫 fixedDelay 회차가 정상 발화: `OrphanRunningWatchdog: 고아 RUNNING 1건 발견 → 회수 시작` 로그 + ID=26이 `FAILED/STARTUP_RECOVERY/duration_ms=3868883`(약 64분)으로 마감. **SQL 에러 0건** — Hibernate prepared 변환에서도 수정된 형태 정상 동작.
+
+### 8.3 ✅ §4.2 — operator 401 (재현 불가, 본 세션 한정 현상으로 결론)
+
+**현 백엔드 인스턴스(13:04:10 기동) 검증**:
+
+```text
+POST /login (admin@ifms.local / admin1234)        → HTTP 200 OK
+POST /login (operator@ifms.local / operator1234)  → HTTP 200 OK
+```
+
+둘 다 정상. `SecurityUserDetailsService` 코드 자체는 무결(in-memory `User.withUsername(...).password(encoder.encode(...))`).
+
+**직전 인스턴스 로그 분석으로 추정한 진짜 원인**:
+
+- 12:35:07까지는 정상 인증 (Hibernate trace에 정상 INSERT/SELECT가 trace ID와 함께 기록됨)
+- 12:35:25부터 모든 로그인이 `BCryptPasswordEncoder - Empty encoded password` 경고로 실패
+- 실패 trace ID에 해당하는 username binding 로그가 **전혀 없음** → `loadUserByUsername` 도달 전 / 직후에 username이 빈 문자열로 들어왔거나, Spring Security `usernamePasswordFilter`가 form 파싱에 실패해 빈 username으로 `UsernameNotFoundException` 분기
+- T21 시점 "operator만 401, admin은 200" 분리는 우연(시도 시점 차이)일 가능성, 본 세션 분석 시점엔 admin도 401이었음
+
+**조치 없음 결론**:
+
+- 코드 변경으로 재현 불가 → 픽스할 대상 없음
+- 다음 발생 시 추적: (1) Spring Security TRACE 로그 활성 (`logging.level.org.springframework.security=TRACE`), (2) 실패 trace ID로 모든 필터 진입 로그 추적, (3) 요청 raw body 기록. 운영 전환 시 in-memory → DB 사용자 테이블로 교체되면 상황 자체 소멸
+
+### 8.4 변경 커밋 (예정)
+
+`fix(infra): T21 §4 잔여 부채 3건 — Vite proxy 분리 + Watchdog SQL + operator 401 분석`
+
+- `frontend/vite.config.ts` — `/login`·`/logout` POST 한정 프록시 (`bypass`)
+- `backend/.../ExecutionLogRepository.java` — `findOrphanRunning` SQL 좌변 양수 합 형태로 재작성
+- `docs/T21-E2E-HANDOFF.md` — 본 §8 추가
