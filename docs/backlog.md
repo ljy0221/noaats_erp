@@ -101,6 +101,42 @@
 | Rate limit (actor·IP 기준 트리거 API) | Day 6 delta rate limiter로 patterns 확립. 트리거 적용은 운영 전환 시 일괄 (Bucket4j/Redis) |
 | Repository Method 캐시화 (PSQLException 리플렉션) | 경미 성능 — 측정 결과 임계 도달 후 결정 |
 
+## Day 8 (제출 완성도 보강) — 진행 결과
+
+### 자동 완료
+
+| 항목 | 상태 |
+|---|---|
+| ~~`InterfaceCronScheduler` + 단위 테스트 5~~ | ✅ Day 8 (`c289b94` 초판 + `501b201` 품질 fix) |
+| ~~`InterfaceConfig.last_scheduled_at` 필드 + schema.sql ALTER~~ | ✅ Day 8 |
+| ~~`docker/backend.Dockerfile` (multi-stage temurin-17)~~ | ✅ Day 8 (`f6d7bd3` + `e90c7c3` CRLF 근본 해결) |
+| ~~`docker/frontend.Dockerfile` + `nginx.conf` (SSE 호환)~~ | ✅ Day 8 (`d93412c` + `3298c18` X-Forwarded-Host) |
+| ~~`docker compose --profile full` backend/frontend~~ | ✅ Day 8 (`60cf1dc` + `1c0062e` start_period 90s) |
+| ~~README §2 옵션 A/B + §2-A CRON 검증~~ | ✅ Day 8 |
+| ~~`.env.example` `IFMS_ADVISORY_LOCK_RETRY_NAMESPACE` 명시~~ | ✅ Day 8 |
+| ~~`.gitattributes` + `.dockerignore` (Windows CRLF·빌드 컨텍스트)~~ | ✅ Day 8 부수 보강 |
+
+### E2E 실측 (자동화)
+
+| 항목 | 결과 |
+|---|---|
+| ~~Playwright MCP 자동화: 로그인 → CRON 등록 → 2분 대기 → SCHEDULER 행 확인~~ | ✅ Day 8 (logId=30) |
+| ~~advisory lock + uk_log_running 경합 흡수 (ConflictException)~~ | ✅ Day 8 (16:46 tick 관찰) |
+| ~~Security 체크 3줄 (시크릿/payload/중복)~~ | ✅ Day 8 전부 PASS |
+| ~~`ee8e1a9` @Transactional self-invocation 회귀 fix~~ | ✅ Day 8 (E2E가 단위 테스트 맹점 드러냄) |
+
+### Day 8 미진행 — 운영/후속 이관
+
+| 항목 | 사유 |
+|---|---|
+| JWT 전환 | 4-에이전트 회의 반대 수렴(spec §1). ADR-008 후속 |
+| 대시보드 차트/sparkline | 회의 이월 결정 |
+| JMH 확장 — ExecutionLog 조회 벤치 | 회의 이월 결정 |
+| 스케줄러 catch-up (재기동 누락 발화 소급) | 운영 전환 범위 |
+| ShedLock / 분산 스케줄러 | 단일 인스턴스 프로토타입 — advisory lock+uk_log_running으로 충분 |
+| frontend healthcheck | Task 6 리뷰 M2 — 운영 전환 시 |
+| `ifms-net` worktree external 선언 | 동일 |
+
 ## 운영 전환 (범위 밖, 기록만)
 
 | 항목 | 트리거 |
