@@ -342,13 +342,13 @@ npm run build   # vue-tsc 타입체크 + vite 빌드 → dist/
 
 | Step | 핵심 산출 | 문서 |
 |---|---|---|
-| Step 2 | 도메인 모델 · JPA · 인터페이스 CRUD API | [Step2-SUMMARY](docs/Step2-SUMMARY.md) |
-| Step 3 | 실행 트리거 · Mock 실행기 5종 · RetryService · Watchdog | [Step3-SUMMARY](docs/Step3-SUMMARY.md) |
-| Step 4 | Spring Security · SSE 기반 · 대시보드 집계 · ConnectionLimit | [Step4-SUMMARY](docs/Step4-SUMMARY.md) |
-| Step 5 | Vue 3 scaffold · InterfaceList/Form · 낙관적 락 충돌 처리 | [Step5-SUMMARY](docs/Step5-SUMMARY.md) |
-| Step 6 | Dashboard · ExecutionHistory · delta API · ADR-007 | [Step6-SUMMARY](docs/Step6-SUMMARY.md) |
-| Step 7 | M1~M9 부채 청산 · 자동 테스트 12건 + race · 문서 정합 | [Step7-SUMMARY](docs/Step7-SUMMARY.md) |
-| **Step 8** | **CRON 자동 실행 + Docker 한 줄 기동 + E2E Playwright 자동화** | **[Step8-SUMMARY](docs/Step8-SUMMARY.md)** |
+| Step 2 | 도메인 모델 · JPA · 인터페이스 CRUD API | [Step2-SUMMARY](docs/STEP2-SUMMARY.md) |
+| Step 3 | 실행 트리거 · Mock 실행기 5종 · RetryService · Watchdog | [Step3-SUMMARY](docs/STEP3-SUMMARY.md) |
+| Step 4 | Spring Security · SSE 기반 · 대시보드 집계 · ConnectionLimit | [Step4-SUMMARY](docs/STEP4-SUMMARY.md) |
+| Step 5 | Vue 3 scaffold · InterfaceList/Form · 낙관적 락 충돌 처리 | [Step5-SUMMARY](docs/STEP5-SUMMARY.md) |
+| Step 6 | Dashboard · ExecutionHistory · delta API · ADR-007 | [Step6-SUMMARY](docs/STEP6-SUMMARY.md) |
+| Step 7 | M1~M9 부채 청산 · 자동 테스트 12건 + race · 문서 정합 | [Step7-SUMMARY](docs/STEP7-SUMMARY.md) |
+| **Step 8** | **CRON 자동 실행 + Docker 한 줄 기동 + E2E Playwright 자동화** | **[Step8-SUMMARY](docs/STEP8-SUMMARY.md)** |
 
 ### 백로그·이월
 
