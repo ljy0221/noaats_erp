@@ -4,6 +4,10 @@ spring:
   profiles:
     # 기본 활성 프로파일. 실행 시 SPRING_PROFILES_ACTIVE 환경변수로 override.
     default: local
+  jackson:
+    # Day 7: ApiResponse가 data=null·message=null을 항상 직렬화하도록 명시 (프런트의 undefined 분기 부담 제거).
+    # DevilsAdvocate Day 2-A 지적사항.
+    default-property-inclusion: ALWAYS
   jpa:
     hibernate:
       # 운영은 validate 고정 (schema.sql + Flyway 이관 경로, erd.md §12)

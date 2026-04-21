@@ -847,7 +847,7 @@ GET /api/monitor/dashboard?since=2026-04-20T00:00:00.000+09:00
 
 | 예외 | ErrorCode | 비고 |
 |---|---|---|
-| `ApiException` (sealed: `BusinessException`/`ConflictException`/`NotFoundException`) | `e.getErrorCode()` | 단일 핸들러로 17종 전수 커버 |
+| `ApiException` (sealed: `BusinessException`/`ConflictException`/`NotFoundException`/`RateLimitException`) | `e.getErrorCode()` | 단일 핸들러로 21종 전수 커버 (Day 6 DELTA 2종 + RateLimitException 추가) |
 | `MethodArgumentNotValidException` | `VALIDATION_FAILED` | `@Valid` 요청 본문. fieldErrors 동봉, REDACTED 규칙 적용 |
 | **`ConstraintViolationException`** | `VALIDATION_FAILED` | `@Valid @RequestParam` / `@PathVariable`. 별도 핸들러 필수 — REDACTED 규칙 공유 |
 | `HttpMessageNotReadableException` | `VALIDATION_FAILED` | Enum 역직렬화 실패 시 `InvalidFormatException.getTargetType().isEnum()` 검사 후 메시지를 `"유효하지 않은 값입니다"`로 sanitize — enum 값 목록 노출 차단 |
@@ -859,7 +859,7 @@ GET /api/monitor/dashboard?since=2026-04-20T00:00:00.000+09:00
 | `AuthenticationException` | `UNAUTHENTICATED` | Spring Security |
 | **그 외 `Exception`** | `INTERNAL_ERROR` | `traceId = UUID.randomUUID().toString()` (§7.6), 스택트레이스 미노출 |
 
-`ApiException` 서브클래스로 17종을 모두 표현한다(각 ErrorCode의 HTTP status를 `BusinessException`/`ConflictException`/`NotFoundException`에서 보증). RETRY_*·INTERFACE_INACTIVE·CONFIG_JSON_INVALID 등 2-B 이후 throw되는 에러도 동일 핸들러가 처리.
+`ApiException` 서브클래스로 21종을 모두 표현한다(각 ErrorCode의 HTTP status를 `BusinessException`/`ConflictException`/`NotFoundException`/`RateLimitException`에서 보증). RETRY_*·INTERFACE_INACTIVE·CONFIG_JSON_INVALID·DELTA_* 등 2-B/Day 6 이후 throw되는 에러도 동일 핸들러가 처리.
 
 목적: 사용자가 실수로 평문 비밀번호를 전송했을 때 **400 응답·브라우저 HAR·프록시 로그에 평문 잔존을 차단**.
 
@@ -1097,6 +1097,9 @@ if (!lock2) throw new ConflictException(RETRY_CHAIN_CONFLICT);
 
 **문서 버전**
 
+- v0.8 — 2026-04-21 (Day 7), 통합·정합 정리
+  - §7.1 매트릭스: `ApiException` sealed permits에 `RateLimitException` 추가 + 21종 전수 커버 표기 정합 (이전 17종 stale 표기 정정)
+  - §7.1 본문: `ApiException` 서브클래스로 21종 표현 (DELTA_RATE_LIMITED 등 Day 6 신규 포함)
 - v0.7 — 2026-04-20, ADR-005 (재처리 정책) 결정 반영
   - §1.3 에러 코드 표: `RETRY_CHAIN_CONFLICT` advisory lock(`parent_log_id`) 실패 추가, `RETRY_LIMIT_EXCEEDED` 기준을 `max_retry_snapshot`으로 갱신
   - §1.3 우선순위 표: 4·5·8·9·10번 항목에 ADR-005 결정 근거 주석 추가, advisory lock 획득 순서 명시

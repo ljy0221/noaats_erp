@@ -16,6 +16,14 @@ import lombok.Getter;
  * </pre>
  *
  * 빌더 대신 {@link #success(Object)} / {@link #error(ErrorCode, String, Map)} 정적 팩토리만 사용.
+ *
+ * <h2>불변식</h2>
+ * <ul>
+ *   <li>{@code success=true} 응답에서만 {@code data} 경로가 마스킹 대상이다 (DefensiveMaskingFilter §3.4).</li>
+ *   <li>{@code success=false} 응답의 {@code data}는 ErrorDetail로, 마스킹은 적용되지 않는다 (구조화된 안전 필드).</li>
+ *   <li>{@code message}는 사용자 노출 가능 텍스트만 담는다 (스택트레이스·SQL·내부 식별자 금지).</li>
+ *   <li>{@code timestamp}는 응답 생성 시각, ISO-8601 OffsetDateTime (응답 본문 일관성).</li>
+ * </ul>
  */
 @Getter
 public final class ApiResponse<T> {
