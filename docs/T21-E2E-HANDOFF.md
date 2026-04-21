@@ -245,3 +245,84 @@ POST /login (operator@ifms.local / operator1234)  → HTTP 200 OK
 - `frontend/vite.config.ts` — `/login`·`/logout` POST 한정 프록시 (`bypass`)
 - `backend/.../ExecutionLogRepository.java` — `findOrphanRunning` SQL 좌변 양수 합 형태로 재작성
 - `docs/T21-E2E-HANDOFF.md` — 본 §8 추가
+
+---
+
+## 8.5 ✅ §4.2 재점검 — 401 근인 확정 + 픽스 (2026-04-21 14:00 후속)
+
+§8.3의 "재현 불가, 조치 없음 결론"을 **뒤집는** 새 증거를 확보했다. 제출 직전 마무리 세션에서 브라우저 E2E 중 operator 로그인이 401로 실패 → curl로도 재현 → 재기동 후 **첫 요청만 200, 이후 모든 요청 401**의 결정적 타이밍 패턴 포착.
+
+### 8.5.1 재현 조건
+
+1. 백엔드를 재기동한다.
+2. 첫 번째 `POST /login`(username/password 무관) → **HTTP 200**
+3. 두 번째 이후 `POST /login`(같은 사용자든 다른 사용자든) → **HTTP 401** + `BCryptPasswordEncoder - Empty encoded password` WARN
+
+§8.3이 관찰한 "1~2분 후 401 전이"는 **이 패턴이 1분 단위로 사람 손 요청 간격과 겹쳐 느리게 보였을 뿐**. 실제로는 **첫 인증 직후 전이**한다.
+
+### 8.5.2 Spring Security TRACE 로그로 본 차이
+
+성공(trace `d3ecc3963c584a03`):
+
+```text
+UsernamePasswordAuthenticationFilter (8/15)
+DaoAuthenticationProvider → Authenticated user
+HttpSessionSecurityContextRepository → Stored SecurityContextImpl [...Password=[PROTECTED]...]
+```
+
+실패(trace `b3aed7e6e54a4d87`, 20초 후):
+
+```text
+UsernamePasswordAuthenticationFilter (8/15)
+ProviderManager → Authenticating request with DaoAuthenticationProvider (1/1)
+BCryptPasswordEncoder - Empty encoded password     ← ★
+DaoAuthenticationProvider - Failed to authenticate since password does not match stored value
+```
+
+실패 경로에도 `UserDetailsService.loadUserByUsername`이 호출되고 있으나(필수 단계), 반환된 `UserDetails`의 **`getPassword()`가 null**이다.
+
+### 8.5.3 근인
+
+[`SecurityUserDetailsService`](../backend/src/main/java/com/noaats/ifms/global/security/SecurityUserDetailsService.java)가 두 개의 `UserDetails` 인스턴스를 **`private final` 필드에 싱글턴으로 보관**하고 `loadUserByUsername`에서 **같은 인스턴스를 그대로 반환**하고 있었다.
+
+Spring Security는 인증 성공 후 기본적으로 `ProviderManager.eraseCredentialsAfterAuthentication=true`에 따라 `AbstractAuthenticationToken.eraseCredentials()`를 호출한다. 이 호출은 principal(=`UserDetails`)의 `eraseCredentials()`에 위임되어 `User.password` 필드를 `null`로 지운다.
+
+싱글턴 인스턴스가 반환되므로 첫 인증 성공의 부수효과(password 지움)가 **필드에 누적**되고, 두 번째 요청은 password가 비어있는 UserDetails를 받아 `BCryptPasswordEncoder.matches(raw, null)` → "Empty encoded password" WARN + 401.
+
+### 8.5.4 픽스
+
+```diff
+-private final UserDetails operator;  // 싱글턴 보관 → eraseCredentials 누적
+-private final UserDetails admin;
++private final String operatorEncodedPassword;  // 불변 원자료만 보관
++private final String adminEncodedPassword;
+ ...
+ @Override
+ public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+-    if (operator.getUsername().equalsIgnoreCase(username)) return operator;
++    if ("operator@ifms.local".equalsIgnoreCase(username)) {
++        return User.withUsername("operator@ifms.local")
++                .password(operatorEncodedPassword)
++                .roles("OPERATOR")
++                .build();   // 매 호출 새 인스턴스
++    }
+     ...
+ }
+```
+
+`PasswordEncoder.encode(...)` 결과 문자열만 필드로 보관하고, `UserDetails` 인스턴스는 매 호출마다 `User.withUsername(...).build()`로 **새로 생성**한다. BCrypt 계산은 기동 시 1회(생성자)만 수행되므로 성능 영향 없음.
+
+### 8.5.5 검증
+
+- 8회 연속 `POST /login` (operator, 10초 간격) → **전부 200**
+- admin 1회 → 200
+- 잘못된 패스워드 → 401 (BadCredentials, 정상)
+- 존재하지 않는 사용자 → 401 (UsernameNotFound → BadCredentials로 승격, 정상)
+- `/tmp/ifms-backend2.log` 전체에서 `Empty encoded password` WARN **0건**
+- 회귀 방지 테스트 추가: [`SecurityUserDetailsServiceTest`](../backend/src/test/java/com/noaats/ifms/global/security/SecurityUserDetailsServiceTest.java) — 6 케이스 (복사본 반환 불변식, eraseCredentials 격리, Role, 대소문자, 존재하지 않는 사용자)
+
+### 8.5.6 §8.3이 놓쳤던 이유
+
+§8.3이 "재현 불가"로 결론 낸 시점에는 Spring Security TRACE가 꺼져 있었다. 로그에서 보이는 건 `BCryptPasswordEncoder - Empty encoded password` WARN 1줄뿐이었고, 이것만으로는 "password가 왜 비어있는지"를 UserDetailsService 싱글턴 문제로 연결하기 어려웠다. **TRACE를 켜자 실패 경로에서도 `DaoAuthenticationProvider`가 UserDetails를 받은 뒤 비교에서 실패한다는 것이 명확해져** 근인이 UserDetailsService 쪽이라는 결론에 도달.
+
+교훈: `UserDetails` 구현체는 **mutable**이다. `UserDetailsService.loadUserByUsername`은 매번 새 인스턴스를 반환해야 하며, 공식 `InMemoryUserDetailsManager`도 매 호출마다 복사본을 만든다. 싱글턴 보관은 Spring Security 문서에도 명시적 경고는 없으나 `CredentialsContainer` 의미론을 위반한다.

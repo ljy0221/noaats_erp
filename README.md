@@ -31,7 +31,7 @@ npm install
 npm run dev
 ```
 
-브라우저에서 <http://localhost:5173> 접속 → `operator` / `password`로 로그인.
+브라우저에서 <http://localhost:5173> 접속 → `operator@ifms.local` / `operator1234`로 로그인 (또는 `admin@ifms.local` / `admin1234`).
 
 ### 환경 의존
 - Docker Desktop 또는 Docker Engine
